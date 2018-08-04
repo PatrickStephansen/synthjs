@@ -1,0 +1,27 @@
+{
+  "name": "synthjs",
+  "version": "1.0.0",
+  "description": "Beginner-friendly modular synth for the browser",
+  "main": "index.js",
+  "scripts": {
+    "start": "webpack-dev-server",
+    "bundle": "webpack"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PatrickStephansen/synthjs.git"
+  },
+  "author": "Patrick Stephansen",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/PatrickStephansen/synthjs/issues"
+  },
+  "homepage": "https://github.com/PatrickStephansen/synthjs#readme",
+  "devDependencies": {
+    "copy-webpack-plugin": "^4.5.2",
+    "maid": "^0.3.0",
+    "webpack": "^4.16.4",
+    "webpack-cli": "^3.1.0",
+    "webpack-dev-server": "^3.1.5"
+  }
+}
