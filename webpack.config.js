@@ -4,11 +4,17 @@ const path = require("path");
 module.exports = {
   entry: "./src/index.js",
   output: {
-    filename: "main.js",
+    filename: "index.js",
     path: path.resolve(__dirname, "dist")
   },
   mode: "development",
-  plugins: [
-    new CopyWebpackPlugin(['src/index.html'])
-  ]
+  plugins: [new CopyWebpackPlugin(["src/index.html"])],
+  module: {
+    rules: [
+      {
+        test: /\.css$/,
+        use: ["style-loader", "css-loader"]
+      }
+    ]
+  }
 };

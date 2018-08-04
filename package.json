@@ -19,7 +19,9 @@
   "homepage": "https://github.com/PatrickStephansen/synthjs#readme",
   "devDependencies": {
     "copy-webpack-plugin": "^4.5.2",
+    "css-loader": "^1.0.0",
     "maid": "^0.3.0",
+    "style-loader": "^0.21.0",
     "webpack": "^4.16.4",
     "webpack-cli": "^3.1.0",
     "webpack-dev-server": "^3.1.5"
