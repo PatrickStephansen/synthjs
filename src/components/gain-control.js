@@ -26,6 +26,6 @@ export class GainControl {
 
   setGain(newGain) {
     this.inputControl.setValue(newGain);
-    this.audioNode.gain.value = this.inputElement.value;
+    this.audioNode.gain.value = this.inputControl.value;
   }
 }
