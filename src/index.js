@@ -2,7 +2,6 @@ import { curry, is, path, prop } from 'ramda';
 
 import './main.css';
 import { GainControl } from './components/gain-control';
-import { switchAll } from 'rxjs/operators';
 
 const getMidiControllers = () => {
   const requestMidiAccess = path(['navigator', 'requestMIDIAccess'], window);
@@ -27,7 +26,8 @@ const keyNumberToPitch = curry((referenceKey, referencePitch, keyNumber) => {
   return referencePitch * 2 ** ((keyNumber - referenceKey) / 12);
 });
 
-const getFirstIdleOscillator = oscillatorPool => oscillatorPool.find(osc => !osc.key) || oscillatorPool[0];
+const getFirstIdleOscillator = oscillatorPool =>
+  oscillatorPool.find(osc => !osc.key) || oscillatorPool[0];
 const getOscillatorForKey = (oscillatorPool, keyNumber) =>
   oscillatorPool.find(o => o.key === keyNumber);
 
@@ -44,7 +44,7 @@ const handleMidiEvent = curry((oscillatorPool, { data: [status, keyNumber, veloc
     oscillatorEntry.key = keyNumber;
     // A4 = 12 * 5 octaves up -3 semitones
     oscillatorEntry.oscillator.frequency.setValueAtTime(keyNumberToPitch(57, 440, keyNumber), 0);
-    oscillatorEntry.amp.setGain(velocity / maxVelocity);
+    oscillatorEntry.amp.setGain(velocity / maxVelocity / oscillatorPool.length);
     if (velocity === 0) {
       oscillatorEntry.key = null;
     }
