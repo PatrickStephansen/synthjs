@@ -76,6 +76,7 @@ const createControllerSelector = curry((oscillatorPool, controllers) => {
       }
     });
   };
+  document.body.appendChild(label);
   document.body.appendChild(selectElement);
 });
 
@@ -96,20 +97,39 @@ const initialize = () => {
         oscillator.connect(amp.audioNode).connect(context.destination)
       );
 
-      const element = document.createElement('button');
+      const masterOnButton = document.createElement('button');
       let itsOn = false;
-      element.innerHTML = 'make some noise';
-      element.addEventListener('click', () => {
+      masterOnButton.innerHTML = 'make some noise';
+      masterOnButton.addEventListener('click', () => {
         if ((itsOn = !itsOn)) {
           context.resume();
-          element.innerHTML = 'cut that out';
+          masterOnButton.innerHTML = 'cut that out';
         } else {
           context.suspend();
-          element.innerHTML = 'make some noise';
+          masterOnButton.innerHTML = 'make some noise';
         }
       });
 
-      document.body.appendChild(element);
+      document.body.appendChild(masterOnButton);
+
+      const waveforms = ['sine', 'triangle', 'sawtooth', 'square'];
+
+      const waveformSelector = document.createElement('select');
+      waveformSelector.id = 'waveform-selector';
+      waveforms.forEach(waveform => {
+        const option = document.createElement('option');
+        option.value = waveform;
+        option.innerText = `${waveform}`;
+        waveformSelector.options.add(option);
+      });
+      waveformSelector.onchange = event =>
+        keyBoardOscillatorPool.forEach(({ oscillator }) => (oscillator.type = event.target.value));
+      const waveformLabel = document.createElement('label');
+      waveformLabel.htmlFor = waveformSelector.id;
+      waveformLabel.innerText = 'waveform';
+      document.body.appendChild(waveformLabel);
+      document.body.appendChild(waveformSelector);
+
       keyBoardOscillatorPool.forEach(({ amp }) => document.body.appendChild(amp.htmlElement));
 
       keyBoardOscillatorPool.forEach(({ oscillator }) => oscillator.start());
