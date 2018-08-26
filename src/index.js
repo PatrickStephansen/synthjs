@@ -27,24 +27,35 @@ const keyNumberToPitch = curry((referenceKey, referencePitch, keyNumber) => {
   return referencePitch * 2 ** ((keyNumber - referenceKey) / 12);
 });
 
-const handleMidiEvent = curry(
-  (oscillator, gainControl, { data: [status, keyNumber, velocity] }) => {
-    const noteOnMask = 0x90; // any channel;
-    const noteOffMask = 0x80; // any channel;
-    const pitchChangeMask = 0xe0;
-    const maxVelocity = 0xef;
+const getFirstIdleOscillator = oscillatorPool => oscillatorPool.find(osc => !osc.key) || oscillatorPool[0];
+const getOscillatorForKey = (oscillatorPool, keyNumber) =>
+  oscillatorPool.find(o => o.key === keyNumber);
 
-    if (noteOnMask & status) {
-      // A4 = 5 * 12 octaves up -3 semitones
-      oscillator.frequency.setValueAtTime(keyNumberToPitch(57, 440, keyNumber), 0);
-      gainControl.setGain(velocity / maxVelocity);
-    } else if (noteOffMask & status) {
-      gainControl.setGain(0);
+const handleMidiEvent = curry((oscillatorPool, { data: [status, keyNumber, velocity] }) => {
+  const noteOnMask = 0x90; // any channel;
+  const noteOffMask = 0x80; // any channel;
+  const pitchChangeMask = 0xe0;
+  const maxVelocity = 0xef;
+  console.log('midi event:', { status, keyNumber, velocity });
+  if (noteOnMask & status) {
+    // some controllers send note on with 0 velocity instead of note off events
+    const oscillatorEntry =
+      getOscillatorForKey(oscillatorPool, keyNumber) || getFirstIdleOscillator(oscillatorPool);
+    oscillatorEntry.key = keyNumber;
+    // A4 = 12 * 5 octaves up -3 semitones
+    oscillatorEntry.oscillator.frequency.setValueAtTime(keyNumberToPitch(57, 440, keyNumber), 0);
+    oscillatorEntry.amp.setGain(velocity / maxVelocity);
+    if (velocity === 0) {
+      oscillatorEntry.key = null;
     }
+  } else if (noteOffMask & status) {
+    const oscillatorEntry = getOscillatorForKey(oscillatorPool, keyNumber);
+    oscillatorEntry.key = null;
+    oscillatorEntry.amp.setGain(0);
   }
-);
+});
 
-const createControllerSelector = curry((oscillator, gainControl, controllers) => {
+const createControllerSelector = curry((oscillatorPool, controllers) => {
   const selectElement = document.createElement('select');
   selectElement.id = 'midiInputSelect';
   const label = document.createElement('label');
@@ -59,7 +70,7 @@ const createControllerSelector = curry((oscillator, gainControl, controllers) =>
   selectElement.onchange = e => {
     controllers.forEach((device, index) => {
       if (index == e.target.value) {
-        device.onmidimessage = handleMidiEvent(oscillator, gainControl);
+        device.onmidimessage = handleMidiEvent(oscillatorPool);
       } else {
         device.onmidimessage = null;
       }
@@ -70,18 +81,24 @@ const createControllerSelector = curry((oscillator, gainControl, controllers) =>
 
 const initialize = () => {
   const context = new AudioContext();
-  const oscillator = new OscillatorNode(context);
-  const amp = new GainControl(context, { gain: 0.8 });
+  const keyBoardOscillatorPool = [];
+  for (let index = 0; index < 10; index++) {
+    keyBoardOscillatorPool.push({
+      oscillator: new OscillatorNode(context),
+      amp: new GainControl(context, { gain: 0 })
+    });
+  }
 
   context
     .suspend()
     .then(() => {
-      oscillator.connect(amp.audioNode).connect(context.destination);
+      keyBoardOscillatorPool.forEach(({ oscillator, amp }) =>
+        oscillator.connect(amp.audioNode).connect(context.destination)
+      );
 
       const element = document.createElement('button');
       let itsOn = false;
       element.innerHTML = 'make some noise';
-      element.classList.add('oscillator');
       element.addEventListener('click', () => {
         if ((itsOn = !itsOn)) {
           context.resume();
@@ -93,11 +110,12 @@ const initialize = () => {
       });
 
       document.body.appendChild(element);
-      document.body.appendChild(amp.htmlElement);
-      oscillator.start();
+      keyBoardOscillatorPool.forEach(({ amp }) => document.body.appendChild(amp.htmlElement));
+
+      keyBoardOscillatorPool.forEach(({ oscillator }) => oscillator.start());
     })
     .then(getMidiControllers)
-    .then(createControllerSelector(oscillator, amp));
+    .then(createControllerSelector(keyBoardOscillatorPool));
 };
 
 document.addEventListener(
