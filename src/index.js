@@ -26,12 +26,54 @@ const keyNumberToPitch = curry((referenceKey, referencePitch, keyNumber) => {
   return referencePitch * 2 ** ((keyNumber - referenceKey) / 12);
 });
 
+const envelopeCanvasOptions = {
+  height: 200,
+  width: 500,
+  maxAmplitude: 127,
+  totalSeconds: 5,
+  sustainWidthFactor: 0.5,
+  margin: 5,
+  scaleWidth: 10
+};
+const drawEnvelopeState = (
+  { height, width, maxAmplitude, totalSeconds, sustainWidthFactor, margin, scaleWidth },
+  context,
+  { a, d, s, r }
+) => {
+  const amplitudePerPixel = maxAmplitude / height;
+  const secondsPerPixel = totalSeconds / width;
+  const drawLineTo = (time, amplitude) =>
+    context.lineTo(
+      scaleWidth + margin + time / secondsPerPixel,
+      margin + height - amplitude / amplitudePerPixel
+    );
+  context.lineJoin = 'miter';
+  context.clearRect(margin, margin, width, height);
+  context.beginPath();
+  context.moveTo(scaleWidth + margin, height + margin);
+  drawLineTo(a.time, a.amplitude);
+  drawLineTo(a.time + d.time, s.amplitude);
+  drawLineTo(a.time + d.time + width * sustainWidthFactor * secondsPerPixel, s.amplitude);
+  drawLineTo(a.time + d.time + width * sustainWidthFactor * secondsPerPixel + r.time, 0);
+  context.stroke();
+};
+
+const attachEnvelopeControls = (
+  { height, width, maxAmplitude, totalSeconds, sustainWidthFactor, margin, scaleWidth },
+  { context, attackTimeInput },
+  { a, d, s, r }
+) => {
+  context.addHitRegion({ control: attackTimeInput });
+  context.drawFocusRingIfNeeded(attackTimeInput);
+  // continue trying with https://developer.mozilla.org/en-US/docs/Web/API/HTML_Drag_and_Drop_API
+};
+
 const getFirstIdleOscillator = oscillatorPool =>
   oscillatorPool.find(osc => !osc.key) || oscillatorPool[0];
 const getOscillatorForKey = (oscillatorPool, keyNumber) =>
   oscillatorPool.find(o => o.key === keyNumber);
 
-const handleMidiEvent = curry((oscillatorPool, { data: [status, keyNumber, velocity] }) => {
+const oscillateOnMidiEvent = curry((oscillatorPool, { data: [status, keyNumber, velocity] }) => {
   const noteOnMask = 0x90; // any channel;
   const noteOffMask = 0x80; // any channel;
   const pitchChangeMask = 0xe0;
@@ -70,7 +112,7 @@ const createControllerSelector = curry((oscillatorPool, controllers) => {
   selectElement.onchange = e => {
     controllers.forEach((device, index) => {
       if (index == e.target.value) {
-        device.onmidimessage = handleMidiEvent(oscillatorPool);
+        device.onmidimessage = oscillateOnMidiEvent(oscillatorPool);
       } else {
         device.onmidimessage = null;
       }
@@ -129,6 +171,30 @@ const initialize = () => {
       waveformLabel.innerText = 'waveform';
       document.body.appendChild(waveformLabel);
       document.body.appendChild(waveformSelector);
+
+      const envelopeElement = document.createElement('canvas');
+      envelopeElement.id = 'midiInputGainEnvelope';
+      const envelopeLabel = document.createElement('label');
+      envelopeLabel.htmlFor = envelopeElement.id;
+      envelopeElement.width =
+        envelopeCanvasOptions.width +
+        2 * envelopeCanvasOptions.margin +
+        envelopeCanvasOptions.scaleWidth;
+      envelopeElement.height =
+        envelopeCanvasOptions.height +
+        2 * envelopeCanvasOptions.margin +
+        envelopeCanvasOptions.scaleWidth;
+      envelopeElement.innerHTML = `canvas not supported <input type="number" id="attackTime">`;
+      const envelopeContext = envelopeElement.getContext('2d');
+      const envelopeState = {
+        a: { time: 0.5, amplitude: 127 },
+        d: { time: 1 },
+        s: { amplitude: 90 },
+        r: { time: 1 }
+      };
+      drawEnvelopeState(envelopeCanvasOptions, envelopeContext, envelopeState);
+      document.body.appendChild(envelopeLabel);
+      document.body.appendChild(envelopeElement);
 
       keyBoardOscillatorPool.forEach(({ amp }) => document.body.appendChild(amp.htmlElement));
 
