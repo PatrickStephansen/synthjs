@@ -28,4 +28,13 @@ export class GainControl {
     this.inputControl.setValue(newGain);
     this.audioNode.gain.value = this.inputControl.value;
   }
+
+  startEnvelope({ a, d, s }, amplitudeScalingFactor) {
+    this.audioNode.gain.setValueAtTime(0, this.audioNode.context.currentTime);
+
+    this.audioNode.gain.linearRampToValueAtTime(
+      a.amplitude * amplitudeScalingFactor,
+      this.audioNode.context.currentTime + a.time
+    );
+  }
 }

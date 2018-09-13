@@ -98,31 +98,33 @@ const getFirstIdleOscillator = oscillatorPool =>
 const getOscillatorForKey = (oscillatorPool, keyNumber) =>
   oscillatorPool.find(o => o.key === keyNumber);
 
-const oscillateOnMidiEvent = curry((oscillatorPool, { data: [status, keyNumber, velocity] }) => {
-  const noteOnMask = 0x90; // any channel;
-  const noteOffMask = 0x80; // any channel;
-  const pitchChangeMask = 0xe0;
-  const maxVelocity = 0xef;
-  console.log('midi event:', { status, keyNumber, velocity });
-  if (noteOnMask & status) {
-    // some controllers send note on with 0 velocity instead of note off events
-    const oscillatorEntry =
-      getOscillatorForKey(oscillatorPool, keyNumber) || getFirstIdleOscillator(oscillatorPool);
-    oscillatorEntry.key = keyNumber;
-    // A4 = 12 * 5 octaves up -3 semitones
-    oscillatorEntry.oscillator.frequency.setValueAtTime(keyNumberToPitch(57, 440, keyNumber), 0);
-    oscillatorEntry.amp.setGain(velocity / maxVelocity / oscillatorPool.length);
-    if (velocity === 0) {
+const oscillateOnMidiEvent = curry(
+  (oscillatorPool, { a, d, s, r }, { data: [status, keyNumber, velocity] }) => {
+    const noteOnMask = 0x90; // any channel;
+    const noteOffMask = 0x80; // any channel;
+    const pitchChangeMask = 0xe0;
+    const maxVelocity = 0xef;
+    console.log('midi event:', { status, keyNumber, velocity });
+    if (noteOnMask & status) {
+      // some controllers send note on with 0 velocity instead of note off events
+      const oscillatorEntry =
+        getOscillatorForKey(oscillatorPool, keyNumber) || getFirstIdleOscillator(oscillatorPool);
+      oscillatorEntry.key = keyNumber;
+      // A4 = 12 * 5 octaves up -3 semitones
+      oscillatorEntry.oscillator.frequency.setValueAtTime(keyNumberToPitch(57, 440, keyNumber), 0);
+      oscillatorEntry.amp.setGain(velocity / maxVelocity / oscillatorPool.length);
+      if (velocity === 0) {
+        oscillatorEntry.key = null;
+      }
+    } else if (noteOffMask & status) {
+      const oscillatorEntry = getOscillatorForKey(oscillatorPool, keyNumber);
       oscillatorEntry.key = null;
+      oscillatorEntry.amp.setGain(0);
     }
-  } else if (noteOffMask & status) {
-    const oscillatorEntry = getOscillatorForKey(oscillatorPool, keyNumber);
-    oscillatorEntry.key = null;
-    oscillatorEntry.amp.setGain(0);
   }
-});
+);
 
-const createControllerSelector = curry((oscillatorPool,onchange, controllers) => {
+const createControllerSelector = curry((onMessage, controllers) => {
   const selectElement = document.createElement('select');
   selectElement.id = 'midiInputSelect';
   const label = document.createElement('label');
@@ -137,7 +139,7 @@ const createControllerSelector = curry((oscillatorPool,onchange, controllers) =>
   selectElement.onchange = e => {
     controllers.forEach((device, index) => {
       if (index == e.target.value) {
-        device.onmidimessage = oscillateOnMidiEvent(oscillatorPool);
+        device.onmidimessage = onMessage;
       } else {
         device.onmidimessage = null;
       }
@@ -156,6 +158,12 @@ const initialize = () => {
       amp: new GainControl(context, { gain: 0 })
     });
   }
+  const envelopeState = {
+    a: { time: 0.5, amplitude: 127 },
+    d: { time: 1 },
+    s: { amplitude: 90 },
+    r: { time: 1 }
+  };
 
   context
     .suspend()
@@ -204,12 +212,7 @@ const initialize = () => {
       envelopeElement.width = envelopeCanvasOptions.width;
       envelopeElement.height = envelopeCanvasOptions.height;
       const envelopeContext = envelopeElement.getContext('2d');
-      const envelopeState = {
-        a: { time: 0.5, amplitude: 127 },
-        d: { time: 1 },
-        s: { amplitude: 90 },
-        r: { time: 1 }
-      };
+
       envelopeElement.addEventListener('mousedown', e => {
         if (e.region === 'attack') {
           envelopeState.a.moving = true;
@@ -246,7 +249,7 @@ const initialize = () => {
       keyBoardOscillatorPool.forEach(({ oscillator }) => oscillator.start());
     })
     .then(getMidiControllers)
-    .then(createControllerSelector(keyBoardOscillatorPool,));
+    .then(createControllerSelector(oscillateOnMidiEvent(keyBoardOscillatorPool, envelopeState)));
 };
 
 document.addEventListener(
