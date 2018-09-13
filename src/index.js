@@ -1,4 +1,4 @@
-import { curry, is, path, prop } from 'ramda';
+import { clamp, curry, is, mergeDeepLeft, path, pipe, prop } from 'ramda';
 
 import './main.css';
 import { GainControl } from './components/gain-control';
@@ -21,6 +21,16 @@ const getMidiControllers = () => {
     return controllers;
   }, console.error);
 };
+const anyMoving = envelopeState =>
+  envelopeState.a.moving ||
+  envelopeState.d.moving ||
+  envelopeState.s.moving ||
+  envelopeState.r.moving ||
+  false;
+
+const stopMoving = envelopeState => {
+  for (let point in envelopeState) envelopeState[point].moving = false;
+};
 
 const keyNumberToPitch = curry((referenceKey, referencePitch, keyNumber) => {
   return referencePitch * 2 ** ((keyNumber - referenceKey) / 12);
@@ -32,41 +42,56 @@ const envelopeCanvasOptions = {
   maxAmplitude: 127,
   totalSeconds: 5,
   sustainWidthFactor: 0.5,
-  margin: 5,
-  scaleWidth: 10
+  0: 10
 };
 const drawEnvelopeState = (
-  { height, width, maxAmplitude, totalSeconds, sustainWidthFactor, margin, scaleWidth },
+  { height, width, maxAmplitude, totalSeconds, sustainWidthFactor },
   context,
   { a, d, s, r }
 ) => {
   const amplitudePerPixel = maxAmplitude / height;
   const secondsPerPixel = totalSeconds / width;
   const drawLineTo = (time, amplitude) =>
-    context.lineTo(
-      scaleWidth + margin + time / secondsPerPixel,
-      margin + height - amplitude / amplitudePerPixel
-    );
+    context.lineTo(time / secondsPerPixel, height - amplitude / amplitudePerPixel);
   context.lineJoin = 'miter';
-  context.clearRect(margin, margin, width, height);
+  context.clearRect(0, 0, width, height);
+  context.clearHitRegions();
   context.beginPath();
-  context.moveTo(scaleWidth + margin, height + margin);
+  context.moveTo(0, height);
   drawLineTo(a.time, a.amplitude);
   drawLineTo(a.time + d.time, s.amplitude);
   drawLineTo(a.time + d.time + width * sustainWidthFactor * secondsPerPixel, s.amplitude);
   drawLineTo(a.time + d.time + width * sustainWidthFactor * secondsPerPixel + r.time, 0);
   context.stroke();
+  context.beginPath();
+  context.arc(
+    a.time / secondsPerPixel,
+    height - a.amplitude / amplitudePerPixel,
+    3,
+    0,
+    2 * Math.PI,
+    false
+  );
+  context.addHitRegion({ id: 'attack', cursor: 'grab' });
+  context.stroke();
 };
 
-const attachEnvelopeControls = (
-  { height, width, maxAmplitude, totalSeconds, sustainWidthFactor, margin, scaleWidth },
-  { context, attackTimeInput },
-  { a, d, s, r }
-) => {
-  context.addHitRegion({ control: attackTimeInput });
-  context.drawFocusRingIfNeeded(attackTimeInput);
-  // continue trying with https://developer.mozilla.org/en-US/docs/Web/API/HTML_Drag_and_Drop_API
-};
+const handleEnvelopePointMove = curry(
+  ({ height, width, maxAmplitude, totalSeconds, sustainWidthFactor }, envelopeState, event) => {
+    if (!anyMoving(envelopeState)) return;
+    const amplitudePerPixel = maxAmplitude / height;
+    const secondsPerPixel = totalSeconds / width;
+    if (envelopeState.a.moving) {
+      const envelopePoint = envelopeState.a;
+      envelopePoint.amplitude = clamp(
+        0,
+        maxAmplitude,
+        maxAmplitude - event.offsetY * amplitudePerPixel
+      );
+      envelopePoint.time = clamp(0, totalSeconds / 5, (event.offsetX - 0) * secondsPerPixel);
+    }
+  }
+);
 
 const getFirstIdleOscillator = oscillatorPool =>
   oscillatorPool.find(osc => !osc.key) || oscillatorPool[0];
@@ -97,7 +122,7 @@ const oscillateOnMidiEvent = curry((oscillatorPool, { data: [status, keyNumber, 
   }
 });
 
-const createControllerSelector = curry((oscillatorPool, controllers) => {
+const createControllerSelector = curry((oscillatorPool,onchange, controllers) => {
   const selectElement = document.createElement('select');
   selectElement.id = 'midiInputSelect';
   const label = document.createElement('label');
@@ -176,15 +201,8 @@ const initialize = () => {
       envelopeElement.id = 'midiInputGainEnvelope';
       const envelopeLabel = document.createElement('label');
       envelopeLabel.htmlFor = envelopeElement.id;
-      envelopeElement.width =
-        envelopeCanvasOptions.width +
-        2 * envelopeCanvasOptions.margin +
-        envelopeCanvasOptions.scaleWidth;
-      envelopeElement.height =
-        envelopeCanvasOptions.height +
-        2 * envelopeCanvasOptions.margin +
-        envelopeCanvasOptions.scaleWidth;
-      envelopeElement.innerHTML = `canvas not supported <input type="number" id="attackTime">`;
+      envelopeElement.width = envelopeCanvasOptions.width;
+      envelopeElement.height = envelopeCanvasOptions.height;
       const envelopeContext = envelopeElement.getContext('2d');
       const envelopeState = {
         a: { time: 0.5, amplitude: 127 },
@@ -192,6 +210,33 @@ const initialize = () => {
         s: { amplitude: 90 },
         r: { time: 1 }
       };
+      envelopeElement.addEventListener('mousedown', e => {
+        if (e.region === 'attack') {
+          envelopeState.a.moving = true;
+        }
+      });
+      envelopeElement.addEventListener(
+        'mousemove',
+        pipe(
+          handleEnvelopePointMove(envelopeCanvasOptions, envelopeState),
+          () =>
+            requestAnimationFrame(() =>
+              drawEnvelopeState(envelopeCanvasOptions, envelopeContext, envelopeState)
+            )
+        )
+      );
+
+      envelopeElement.addEventListener(
+        'mouseup',
+        pipe(
+          handleEnvelopePointMove(envelopeCanvasOptions, envelopeState),
+          () => stopMoving(envelopeState),
+          () =>
+            requestAnimationFrame(() =>
+              drawEnvelopeState(envelopeCanvasOptions, envelopeContext, envelopeState)
+            )
+        )
+      );
       drawEnvelopeState(envelopeCanvasOptions, envelopeContext, envelopeState);
       document.body.appendChild(envelopeLabel);
       document.body.appendChild(envelopeElement);
@@ -201,7 +246,7 @@ const initialize = () => {
       keyBoardOscillatorPool.forEach(({ oscillator }) => oscillator.start());
     })
     .then(getMidiControllers)
-    .then(createControllerSelector(keyBoardOscillatorPool));
+    .then(createControllerSelector(keyBoardOscillatorPool,));
 };
 
 document.addEventListener(
