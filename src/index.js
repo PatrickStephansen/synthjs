@@ -1,4 +1,4 @@
-import { clamp, curry, is, path, pipe, prop, when } from 'ramda';
+import { clamp, cond, curry, is, path, pipe, prop, propEq, when } from 'ramda';
 
 import './main.css';
 import { GainControl } from './components/gain-control';
@@ -74,6 +74,17 @@ const drawEnvelopeState = (
   );
   context.addHitRegion({ id: 'attack', cursor: 'grab' });
   context.fill();
+  context.beginPath();
+  context.arc(
+    (a.time + d.time) / secondsPerPixel,
+    height - s.amplitude / amplitudePerPixel,
+    handleRadius,
+    0,
+    2 * Math.PI,
+    false
+  );
+  context.addHitRegion({ id: 'decay', cursor: 'grab' });
+  context.fill();
 };
 
 const handleEnvelopePointMove = curry(
@@ -85,14 +96,23 @@ const handleEnvelopePointMove = curry(
       envelopePoint.amplitude = clamp(
         0,
         maxAmplitude,
-        maxAmplitude - event.offsetY * amplitudePerPixel
+        maxAmplitude - event.relativeY * amplitudePerPixel
       );
       envelopePoint.time = clamp(
         0,
         totalSeconds - minSustainWidth * secondsPerPixel - (d.time + r.time),
-        event.offsetX * secondsPerPixel
+        event.relativeX * secondsPerPixel
       );
     }
+    if (d.moving) {
+      s.amplitude = clamp(0, maxAmplitude, maxAmplitude - event.relativeY * amplitudePerPixel);
+      d.time = clamp(
+        0,
+        totalSeconds - minSustainWidth * secondsPerPixel - (a.time + r.time),
+        event.relativeX * secondsPerPixel - a.time
+      );
+    }
+    event.preventDefault();
   }
 );
 
@@ -150,6 +170,13 @@ const createControllerSelector = curry((onMessage, controllers) => {
   };
   document.body.appendChild(label);
   document.body.appendChild(selectElement);
+});
+
+const addRelativeElementCoords = curry((element, event) => {
+  const elementLocation = element.getBoundingClientRect();
+  event.relativeX = event.clientX - elementLocation.x;
+  event.relativeY = event.clientY - elementLocation.y;
+  return event;
 });
 
 const initialize = () => {
@@ -216,16 +243,40 @@ const initialize = () => {
       envelopeElement.height = envelopeCanvasOptions.height;
       const envelopeContext = envelopeElement.getContext('2d');
 
-      envelopeElement.addEventListener('mousedown', e => {
-        if (e.region === 'attack') {
-          envelopeState.a.moving = true;
-        }
-      });
+      const isRegion = propEq('region');
+
       envelopeElement.addEventListener(
+        'mousedown',
+        cond([
+          [
+            isRegion('attack'),
+            () => {
+              envelopeState.a.moving = true;
+              envelopeState.d.moving = envelopeState.r.moving = false;
+            }
+          ],
+          [
+            isRegion('decay'),
+            () => {
+              envelopeState.d.moving = true;
+              envelopeState.a.moving = envelopeState.r.moving = false;
+            }
+          ],
+          [
+            isRegion('release'),
+            () => {
+              envelopeState.r.moving = true;
+              envelopeState.a.moving = envelopeState.d.moving = false;
+            }
+          ]
+        ])
+      );
+      window.addEventListener(
         'mousemove',
         when(
           () => anyMoving(envelopeState),
           pipe(
+            addRelativeElementCoords(envelopeElement),
             handleEnvelopePointMove(envelopeCanvasOptions, envelopeState),
             () =>
               requestAnimationFrame(() =>
@@ -235,20 +286,19 @@ const initialize = () => {
         )
       );
 
-      envelopeElement.addEventListener(
-        'mouseup',
-        when(
-          () => anyMoving(envelopeState),
-          pipe(
-            handleEnvelopePointMove(envelopeCanvasOptions, envelopeState),
-            () => stopMoving(envelopeState),
-            () =>
-              requestAnimationFrame(() =>
-                drawEnvelopeState(envelopeCanvasOptions, envelopeContext, envelopeState)
-              )
-          )
+      const handleReleased = when(
+        () => anyMoving(envelopeState),
+        pipe(
+          addRelativeElementCoords(envelopeElement),
+          handleEnvelopePointMove(envelopeCanvasOptions, envelopeState),
+          () => stopMoving(envelopeState),
+          () =>
+            requestAnimationFrame(() =>
+              drawEnvelopeState(envelopeCanvasOptions, envelopeContext, envelopeState)
+            )
         )
       );
+      window.addEventListener('mouseup', handleReleased);
       drawEnvelopeState(envelopeCanvasOptions, envelopeContext, envelopeState);
       document.body.appendChild(envelopeLabel);
       document.body.appendChild(envelopeElement);
