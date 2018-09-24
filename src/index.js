@@ -85,6 +85,17 @@ const drawEnvelopeState = (
   );
   context.addHitRegion({ id: 'decay', cursor: 'grab' });
   context.fill();
+  context.beginPath();
+  context.arc(
+    (totalSeconds - r.time) / secondsPerPixel,
+    height - s.amplitude / amplitudePerPixel,
+    handleRadius,
+    0,
+    2 * Math.PI,
+    false
+  );
+  context.addHitRegion({ id: 'release', cursor: 'grab' });
+  context.fill();
 };
 
 const handleEnvelopePointMove = curry(
@@ -112,7 +123,14 @@ const handleEnvelopePointMove = curry(
         event.relativeX * secondsPerPixel - a.time
       );
     }
-    event.preventDefault();
+    if (r.moving) {
+      s.amplitude = clamp(0, maxAmplitude, maxAmplitude - event.relativeY * amplitudePerPixel);
+      r.time = clamp(
+        0,
+        totalSeconds - minSustainWidth * secondsPerPixel - (a.time + d.time),
+        (width - event.relativeX) * secondsPerPixel
+      );
+    }
   }
 );
 
