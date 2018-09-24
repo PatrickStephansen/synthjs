@@ -1,4 +1,4 @@
-import { clamp, curry, is, mergeDeepLeft, path, pipe, prop } from 'ramda';
+import { clamp, curry, is, path, pipe, prop } from 'ramda';
 
 import './main.css';
 import { GainControl } from './components/gain-control';
@@ -41,11 +41,11 @@ const envelopeCanvasOptions = {
   width: 500,
   maxAmplitude: 127,
   totalSeconds: 5,
-  sustainWidthFactor: 0.5,
-  0: 10
+  handleRadius: 4,
+  minSustainWidth: 50
 };
 const drawEnvelopeState = (
-  { height, width, maxAmplitude, totalSeconds, sustainWidthFactor },
+  { height, width, maxAmplitude, totalSeconds, handleRadius },
   context,
   { a, d, s, r }
 ) => {
@@ -60,35 +60,38 @@ const drawEnvelopeState = (
   context.moveTo(0, height);
   drawLineTo(a.time, a.amplitude);
   drawLineTo(a.time + d.time, s.amplitude);
-  drawLineTo(a.time + d.time + width * sustainWidthFactor * secondsPerPixel, s.amplitude);
-  drawLineTo(a.time + d.time + width * sustainWidthFactor * secondsPerPixel + r.time, 0);
+  drawLineTo(totalSeconds - r.time, s.amplitude);
+  drawLineTo(totalSeconds, 0);
   context.stroke();
   context.beginPath();
   context.arc(
     a.time / secondsPerPixel,
     height - a.amplitude / amplitudePerPixel,
-    3,
+    handleRadius,
     0,
     2 * Math.PI,
     false
   );
   context.addHitRegion({ id: 'attack', cursor: 'grab' });
-  context.stroke();
+  context.fill();
 };
 
 const handleEnvelopePointMove = curry(
-  ({ height, width, maxAmplitude, totalSeconds, sustainWidthFactor }, envelopeState, event) => {
-    if (!anyMoving(envelopeState)) return;
+  ({ height, width, maxAmplitude, totalSeconds, minSustainWidth }, { a, d, s, r }, event) => {
     const amplitudePerPixel = maxAmplitude / height;
     const secondsPerPixel = totalSeconds / width;
-    if (envelopeState.a.moving) {
-      const envelopePoint = envelopeState.a;
+    if (a.moving) {
+      const envelopePoint = a;
       envelopePoint.amplitude = clamp(
         0,
         maxAmplitude,
         maxAmplitude - event.offsetY * amplitudePerPixel
       );
-      envelopePoint.time = clamp(0, totalSeconds / 5, (event.offsetX - 0) * secondsPerPixel);
+      envelopePoint.time = clamp(
+        0,
+        totalSeconds - minSustainWidth * secondsPerPixel - (d.time + r.time),
+        event.offsetX * secondsPerPixel
+      );
     }
   }
 );
