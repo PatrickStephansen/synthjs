@@ -1,4 +1,4 @@
-import { clamp, curry, is, path, pipe, prop } from 'ramda';
+import { clamp, curry, is, path, pipe, prop, when } from 'ramda';
 
 import './main.css';
 import { GainControl } from './components/gain-control';
@@ -223,24 +223,30 @@ const initialize = () => {
       });
       envelopeElement.addEventListener(
         'mousemove',
-        pipe(
-          handleEnvelopePointMove(envelopeCanvasOptions, envelopeState),
-          () =>
-            requestAnimationFrame(() =>
-              drawEnvelopeState(envelopeCanvasOptions, envelopeContext, envelopeState)
-            )
+        when(
+          () => anyMoving(envelopeState),
+          pipe(
+            handleEnvelopePointMove(envelopeCanvasOptions, envelopeState),
+            () =>
+              requestAnimationFrame(() =>
+                drawEnvelopeState(envelopeCanvasOptions, envelopeContext, envelopeState)
+              )
+          )
         )
       );
 
       envelopeElement.addEventListener(
         'mouseup',
-        pipe(
-          handleEnvelopePointMove(envelopeCanvasOptions, envelopeState),
-          () => stopMoving(envelopeState),
-          () =>
-            requestAnimationFrame(() =>
-              drawEnvelopeState(envelopeCanvasOptions, envelopeContext, envelopeState)
-            )
+        when(
+          () => anyMoving(envelopeState),
+          pipe(
+            handleEnvelopePointMove(envelopeCanvasOptions, envelopeState),
+            () => stopMoving(envelopeState),
+            () =>
+              requestAnimationFrame(() =>
+                drawEnvelopeState(envelopeCanvasOptions, envelopeContext, envelopeState)
+              )
+          )
         )
       );
       drawEnvelopeState(envelopeCanvasOptions, envelopeContext, envelopeState);
