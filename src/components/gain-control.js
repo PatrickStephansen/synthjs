@@ -26,15 +26,30 @@ export class GainControl {
 
   setGain(newGain) {
     this.inputControl.setValue(newGain);
+    this.audioNode.gain.cancelScheduledValues(this.audioNode.context.currentTime);
     this.audioNode.gain.value = this.inputControl.value;
   }
 
   startEnvelope({ a, d, s }, amplitudeScalingFactor) {
+    this.audioNode.gain.cancelScheduledValues(this.audioNode.context.currentTime);
     this.audioNode.gain.setValueAtTime(0, this.audioNode.context.currentTime);
+    this.inputControl.setValue(a.amplitude * amplitudeScalingFactor);
 
     this.audioNode.gain.linearRampToValueAtTime(
       a.amplitude * amplitudeScalingFactor,
       this.audioNode.context.currentTime + a.time
     );
+  }
+
+  endEnvelope({ r }) {
+    const currentGain = this.audioNode.gain.value;
+    this.audioNode.gain.cancelScheduledValues(this.audioNode.context.currentTime);
+    this.audioNode.gain.setValueAtTime(currentGain, this.audioNode.context.currentTime);
+
+    this.audioNode.gain.linearRampToValueAtTime(
+      0,
+      this.audioNode.context.currentTime + r.time
+    );
+    this.inputControl.setValue(0);
   }
 }

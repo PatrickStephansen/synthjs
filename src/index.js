@@ -39,7 +39,7 @@ const keyNumberToPitch = curry((referenceKey, referencePitch, keyNumber) => {
 const envelopeCanvasOptions = {
   height: 200,
   width: 500,
-  maxAmplitude: 127,
+  maxAmplitude: 1,
   totalSeconds: 5,
   handleRadius: 4,
   minSustainWidth: 50
@@ -144,7 +144,7 @@ const oscillateOnMidiEvent = curry(
     const noteOnMask = 0x90; // any channel;
     const noteOffMask = 0x80; // any channel;
     const pitchChangeMask = 0xe0;
-    const maxVelocity = 0xef;
+    const maxVelocity = 127;
     console.log('midi event:', { status, keyNumber, velocity });
     if (noteOnMask & status) {
       // some controllers send note on with 0 velocity instead of note off events
@@ -153,9 +153,18 @@ const oscillateOnMidiEvent = curry(
       oscillatorEntry.key = keyNumber;
       // A4 = 12 * 5 octaves up -3 semitones
       oscillatorEntry.oscillator.frequency.setValueAtTime(keyNumberToPitch(57, 440, keyNumber), 0);
-      oscillatorEntry.amp.setGain(velocity / maxVelocity / oscillatorPool.length);
-      if (velocity === 0) {
-        oscillatorEntry.key = null;
+      const scalingFactor = velocity / maxVelocity / oscillatorPool.length;
+      // if the oscillator hasn't been freed and is being reused, cancel the scheduled freeing
+      if (oscillatorEntry.key !== null) {
+        clearTimeout(oscillatorEntry.freeTimer);
+      }
+      if (velocity <= 0) {
+        oscillatorEntry.freeTimer = setTimeout(() => {
+          oscillatorEntry.key = null;
+        }, r.time * 1000);
+        oscillatorEntry.amp.endEnvelope({ r });
+      } else {
+        oscillatorEntry.amp.startEnvelope({ a, d, s }, scalingFactor);
       }
     } else if (noteOffMask & status) {
       const oscillatorEntry = getOscillatorForKey(oscillatorPool, keyNumber);
@@ -207,9 +216,9 @@ const initialize = () => {
     });
   }
   const envelopeState = {
-    a: { time: 0.5, amplitude: 127 },
+    a: { time: 0.5, amplitude: 1 },
     d: { time: 1 },
-    s: { amplitude: 90 },
+    s: { amplitude: 0.75 },
     r: { time: 1 }
   };
 
