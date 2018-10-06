@@ -1,4 +1,4 @@
-import { clamp, cond, curry, is, path, pipe, prop, propEq, when } from 'ramda';
+import { clamp, cond, curry, is, minBy, path, pipe, prop, propEq, sortBy, when } from 'ramda';
 
 import './main.css';
 import { GainControl } from './components/gain-control';
@@ -135,41 +135,43 @@ const handleEnvelopePointMove = curry(
 );
 
 const getFirstIdleOscillator = oscillatorPool =>
-  oscillatorPool.find(osc => !osc.key) || oscillatorPool[0];
+  oscillatorPool.find(osc => !osc.key) || oscillatorPool.reduce(minBy(o => o.lastReleased));
 const getOscillatorForKey = (oscillatorPool, keyNumber) =>
-  oscillatorPool.find(o => o.key === keyNumber);
+  sortBy(o => -o.lastPressed, oscillatorPool).find(o => o.key === keyNumber);
 
 const oscillateOnMidiEvent = curry(
   (oscillatorPool, { a, d, s, r }, { data: [status, keyNumber, velocity] }) => {
     const noteOnMask = 0x90; // any channel;
-    const noteOffMask = 0x80; // any channel;
-    const pitchChangeMask = 0xe0;
     const maxVelocity = 127;
     console.log('midi event:', { status, keyNumber, velocity });
     if (noteOnMask & status) {
-      // some controllers send note on with 0 velocity instead of note off events
-      const oscillatorEntry =
-        getOscillatorForKey(oscillatorPool, keyNumber) || getFirstIdleOscillator(oscillatorPool);
-      oscillatorEntry.key = keyNumber;
-      // A4 = 12 * 5 octaves up -3 semitones
-      oscillatorEntry.oscillator.frequency.setValueAtTime(keyNumberToPitch(57, 440, keyNumber), 0);
-      const scalingFactor = velocity / maxVelocity / oscillatorPool.length;
-      // if the oscillator hasn't been freed and is being reused, cancel the scheduled freeing
-      if (oscillatorEntry.key !== null) {
-        clearTimeout(oscillatorEntry.freeTimer);
-      }
+      let oscillatorEntry;
+
       if (velocity <= 0) {
+        oscillatorEntry = getOscillatorForKey(oscillatorPool, keyNumber);
+        if (!oscillatorEntry) {
+          console.count('no oscillator to fee for key ' + keyNumber);
+          return;
+        }
         oscillatorEntry.freeTimer = setTimeout(() => {
           oscillatorEntry.key = null;
+          oscillatorEntry.lastReleased = Date.now();
         }, r.time * 1000);
         oscillatorEntry.amp.endEnvelope({ r });
       } else {
+        const scalingFactor = velocity / maxVelocity / oscillatorPool.length;
+        oscillatorEntry = getFirstIdleOscillator(oscillatorPool);
+        oscillatorEntry.lastPressed = Date.now();
         oscillatorEntry.amp.startEnvelope({ a, d, s }, scalingFactor);
+        // if the oscillator hasn't been freed and is being reused, cancel the scheduled freeing
+        if (oscillatorEntry.key !== null) {
+          clearTimeout(oscillatorEntry.freeTimer);
+        }
       }
-    } else if (noteOffMask & status) {
-      const oscillatorEntry = getOscillatorForKey(oscillatorPool, keyNumber);
-      oscillatorEntry.key = null;
-      oscillatorEntry.amp.setGain(0);
+      // some controllers send note on with 0 velocity instead of note off events
+      oscillatorEntry.key = keyNumber;
+      // A4 = 12 * 5 octaves up -3 semitones
+      oscillatorEntry.oscillator.frequency.setValueAtTime(keyNumberToPitch(57, 440, keyNumber), 0);
     }
   }
 );
@@ -209,7 +211,8 @@ const addRelativeElementCoords = curry((element, event) => {
 const initialize = () => {
   const context = new AudioContext();
   const keyBoardOscillatorPool = [];
-  for (let index = 0; index < 10; index++) {
+  const oscillatorPoolSize = 10;
+  for (let index = 0; index < oscillatorPoolSize; index++) {
     keyBoardOscillatorPool.push({
       oscillator: new OscillatorNode(context),
       amp: new GainControl(context, { gain: 0 })
