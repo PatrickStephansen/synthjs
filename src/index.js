@@ -39,6 +39,10 @@ const keyNumberToPitch = curry((referenceKey, referencePitch, keyNumber) => {
   return referencePitch * 2 ** ((keyNumber - referenceKey) / 12);
 });
 
+const keyNumberToNote = keyNumber =>
+  ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][keyNumber % 12] +
+  (Math.floor(keyNumber / 12) - 1);
+
 const envelopeCanvasOptions = {
   height: 200,
   width: 500,
@@ -183,7 +187,7 @@ const oscillateOnMidiEvent = curry(
         const scalingFactor = velocity / maxVelocity / oscillatorPool.length;
         oscillatorEntry = getFirstIdleOscillator(oscillatorPool);
         oscillatorEntry.lastPressed = Date.now();
-        oscillatorEntry.amp.startEnvelope({ a, d, s }, scalingFactor);
+        oscillatorEntry.amp.startEnvelope({ a, d, s }, scalingFactor, keyNumberToNote(keyNumber));
         // if the oscillator hasn't been freed and is being reused, cancel the scheduled freeing
         if (oscillatorEntry.key !== null) {
           clearTimeout(oscillatorEntry.freeTimer);

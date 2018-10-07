@@ -15,7 +15,10 @@ export class GainControl {
       value: this.audioNode.gain.value,
       label: 'Gain'
     });
+    this.noteDisplayElement = document.createElement('span');
+    this.noteDisplayElement.classList.add('note');
     this.htmlElement.appendChild(this.inputControl.htmlElement);
+    this.htmlElement.appendChild(this.noteDisplayElement);
 
     this.subscriptions.push(
       this.inputControl.change$.pipe(distinctUntilChanged()).subscribe(newGain => {
@@ -24,13 +27,7 @@ export class GainControl {
     );
   }
 
-  setGain(newGain) {
-    this.inputControl.setValue(newGain);
-    this.audioNode.gain.cancelScheduledValues(this.audioNode.context.currentTime);
-    this.audioNode.gain.value = this.inputControl.value;
-  }
-
-  startEnvelope({ a, d, s }, amplitudeScalingFactor) {
+  startEnvelope({ a, d, s }, amplitudeScalingFactor, noteName) {
     this.audioNode.gain.cancelScheduledValues(this.audioNode.context.currentTime);
 
     this.audioNode.gain.setTargetAtTime(
@@ -45,11 +42,13 @@ export class GainControl {
     );
 
     this.inputControl.setValue(a.amplitude * amplitudeScalingFactor);
+    this.noteDisplayElement.innerText = noteName;
   }
 
   endEnvelope({ r }) {
     this.audioNode.gain.cancelAndHoldAtTime(this.audioNode.context.currentTime);
     this.audioNode.gain.setTargetAtTime(0, this.audioNode.context.currentTime, r.time / 4);
     this.inputControl.setValue(0);
+    this.noteDisplayElement.innerText = '';
   }
 }
