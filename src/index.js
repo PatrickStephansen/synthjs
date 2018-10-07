@@ -44,11 +44,11 @@ const keyNumberToNote = keyNumber =>
   (Math.floor(keyNumber / 12) - 1);
 
 const envelopeCanvasOptions = {
-  height: 200,
-  width: 500,
+  height: 360,
+  width: 1000,
   maxAmplitude: 1,
   totalSeconds: 5,
-  handleRadius: 4,
+  handleRadius: 6,
   minSustainWidth: 50
 };
 
