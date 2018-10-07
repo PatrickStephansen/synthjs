@@ -1,4 +1,17 @@
-import { clamp, cond, curry, is, minBy, path, pipe, prop, propEq, sortBy, when } from 'ramda';
+import {
+  clamp,
+  cond,
+  curry,
+  filter,
+  is,
+  minBy,
+  path,
+  pipe,
+  prop,
+  propEq,
+  sortBy,
+  when
+} from 'ramda';
 
 import './main.css';
 import { GainControl } from './components/gain-control';
@@ -58,6 +71,7 @@ const drawNoteAnimations = (
   animations,
   { height, width, maxAmplitude, totalSeconds, amplitudePerPixel, secondsPerPixel, noteFontSize },
   context,
+  { r },
   time
 ) => {
   context.save();
@@ -66,26 +80,37 @@ const drawNoteAnimations = (
   context.textBaseline = 'ideographic';
   context.font = `${noteFontSize}px sans-serif`;
   const noteTextWidth = context.measureText('E#-1').width * 0.6;
-  const activeAnimations = animations.filter(a => a.startTime <= time && time <= a.endTime);
-  activeAnimations.forEach(animation => {
-    const timeOnCanvas = (time - animation.curveSratTime) / 1000 / secondsPerPixel;
-    const amplitudeOnCanvas =
-      height - animation.curve((time - animation.startTime) / 1000) / amplitudePerPixel;
-    animation.timeOnCanvas = timeOnCanvas;
-    animation.amplitudeOnCanvas = amplitudeOnCanvas;
-    context.beginPath();
-    context.arc(timeOnCanvas, amplitudeOnCanvas, noteTextWidth, 0, 2 * Math.PI);
-    console.log('animation at ', timeOnCanvas, amplitudeOnCanvas);
-    context.fill();
-  });
+  const filterActive = filter(a => a.startTime <= time && time <= a.endTime);
+  const activeAnimations = filterActive(animations);
+  activeAnimations.forEach(animation =>
+    filterActive(animation.phases).forEach(animationPhase => {
+      const curveStartTime =
+        animationPhase.curveStartTime > 0
+          ? animationPhase.curveStartTime
+          : -totalSeconds * 1000 - animationPhase.curveStartTime + animationPhase.startTime;
+      let timeOnCanvas = (time - curveStartTime) / 1000 / secondsPerPixel;
+      if (animationPhase.phase === 'sustain') {
+        timeOnCanvas = Math.min(timeOnCanvas, (totalSeconds - r.time) / secondsPerPixel);
+      }
+      const amplitudeOnCanvas =
+        height - animationPhase.curve((time - animationPhase.startTime) / 1000) / amplitudePerPixel;
+      animationPhase.timeOnCanvas = timeOnCanvas;
+      animationPhase.amplitudeOnCanvas = amplitudeOnCanvas;
+      context.beginPath();
+      context.arc(timeOnCanvas, amplitudeOnCanvas, noteTextWidth, 0, 2 * Math.PI);
+      context.fill();
+    })
+  );
   context.fillStyle = 'rgba(255, 255, 255, 06)';
-  activeAnimations.forEach(animation => {
-    context.fillText(
-      animation.noteName,
-      animation.timeOnCanvas,
-      animation.amplitudeOnCanvas + 0.5 * noteFontSize
-    );
-  });
+  activeAnimations.forEach(animation =>
+    filterActive(animation.phases).forEach(animationPhase => {
+      context.fillText(
+        animation.noteName,
+        animationPhase.timeOnCanvas,
+        animationPhase.amplitudeOnCanvas + 0.5 * noteFontSize
+      );
+    })
+  );
 
   context.restore();
 };
@@ -166,6 +191,7 @@ const drawEnvelopeState = (
     animations,
     { height, width, maxAmplitude, totalSeconds, amplitudePerPixel, secondsPerPixel, noteFontSize },
     context,
+    { r },
     time
   );
 
@@ -184,29 +210,59 @@ const drawEnvelopeState = (
 
 const startAttackAnimation = ({ a, d, s }, noteName) => {
   const now = Date.now();
-  return [
-    {
-      phase: 'attack',
-      curve: t => (a.amplitude / a.time) * t,
-      noteName,
-      startTime: now,
-      curveSratTime: now,
-      endTime: now + a.time * 1000
-    },
-    {
-      // a.amplitude = c
-      // s.amplitude = m*(d.time) + c
-      // s.amplitude = m*(d.time) + a.amplitude
-      // m = (s.amplitude -a.amplitude )/d.time
-      // amplitude = t*((s.amplitude -a.amplitude )/d.time) + a.amplitude
-      phase: 'decay',
-      curve: t => t * ((s.amplitude - a.amplitude) / d.time) + a.amplitude,
-      noteName,
-      startTime: now + a.time * 1000,
-      curveSratTime: now,
-      endTime: now + 1000 * (a.time + d.time)
-    }
-  ];
+  return {
+    noteName,
+    startTime: now,
+    endTime: now + 60000,
+    phases: [
+      {
+        phase: 'attack',
+        curve: t => (a.amplitude / a.time) * t,
+        startTime: now,
+        curveStartTime: now,
+        endTime: now + a.time * 1000
+      },
+      {
+        // a.amplitude = c
+        // s.amplitude = m*(d.time) + c
+        // s.amplitude = m*(d.time) + a.amplitude
+        // m = (s.amplitude -a.amplitude )/d.time
+        // amplitude = t*((s.amplitude -a.amplitude )/d.time) + a.amplitude
+        phase: 'decay',
+        curve: t => t * ((s.amplitude - a.amplitude) / d.time) + a.amplitude,
+        startTime: now + a.time * 1000,
+        curveStartTime: now,
+        endTime: now + 1000 * (a.time + d.time)
+      },
+      {
+        phase: 'sustain',
+        curve: () => s.amplitude,
+        startTime: now + (a.time + d.time) * 1000,
+        curveStartTime: now,
+        // normally ended by cancellation
+        // safety net prevents rendering forever
+        endTime: now + 60000
+      }
+    ]
+  };
+};
+
+const startReleaseAnimation = ({ s, r }, noteName) => {
+  const now = Date.now();
+  return {
+    noteName,
+    startTime: now,
+    endTime: now + r.time * 1000,
+    phases: [
+      {
+        phase: 'release',
+        curve: t => (-s.amplitude / r.time) * t + s.amplitude,
+        startTime: now,
+        curveStartTime: -r.time * 1000,
+        endTime: now + r.time * 1000
+      }
+    ]
+  };
 };
 
 const handleEnvelopePointMove = curry(
@@ -262,6 +318,7 @@ const oscillateOnMidiEvent = curry(
     if (noteRangeStart <= status && status <= noteRangeEnd) {
       let oscillatorEntry;
 
+      const noteName = keyNumberToNote(keyNumber);
       if (velocity <= 0 || status <= 143) {
         oscillatorEntry = getOscillatorForKey(oscillatorPool, keyNumber);
         if (!oscillatorEntry) {
@@ -274,16 +331,23 @@ const oscillateOnMidiEvent = curry(
         oscillatorEntry.lastReleased = Date.now();
         oscillatorEntry.isDecaying = true;
 
-        oscillatorEntry.amp.endEnvelope({ r }, keyNumberToNote(keyNumber));
+        animations.splice(
+          animations.findIndex(
+            a => a.phases.some(p => p.phase === 'attack') && a.noteName === noteName
+          ),
+          1
+        );
+        animations.push(startReleaseAnimation({ s, r }, noteName));
+
+        oscillatorEntry.amp.endEnvelope({ r }, noteName);
       } else {
         const scalingFactor = velocity / maxVelocity / oscillatorPool.length;
         oscillatorEntry = getFirstIdleOscillator(oscillatorPool);
         oscillatorEntry.lastPressed = Date.now();
         oscillatorEntry.isDecaying = false;
 
-        const noteName = keyNumberToNote(keyNumber);
         // impure
-        animations.push(...startAttackAnimation({ a, d, s }, noteName));
+        animations.push(startAttackAnimation({ a, d, s }, noteName));
         oscillatorEntry.amp.startEnvelope({ a, d, s }, scalingFactor, noteName);
         // if the oscillator hasn't been freed and is being reused, cancel the scheduled freeing
         if (oscillatorEntry.key !== null) {
