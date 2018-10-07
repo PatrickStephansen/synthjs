@@ -1,7 +1,12 @@
-* {
+body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 canvas {
   border: solid black 1px;
+}
+
+.control-group{
+  margin-top: 5px;
+  margin-bottom: 5px;
 }

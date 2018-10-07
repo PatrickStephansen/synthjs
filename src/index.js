@@ -3,6 +3,9 @@ import { clamp, cond, curry, is, minBy, path, pipe, prop, propEq, sortBy, when }
 import './main.css';
 import { GainControl } from './components/gain-control';
 
+const getMasterControlsSection = () => document.getElementById('master-controls');
+const getOscillatorControlsSection = () => document.getElementById('oscillator-controls');
+
 const getMidiControllers = () => {
   const requestMidiAccess = path(['navigator', 'requestMIDIAccess'], window);
   if (!is(Function, requestMidiAccess)) {
@@ -177,6 +180,8 @@ const oscillateOnMidiEvent = curry(
 );
 
 const createControllerSelector = curry((onMessage, controllers) => {
+  const selectorContainer = document.createElement('div');
+  selectorContainer.classList.add('control-group');
   const selectElement = document.createElement('select');
   selectElement.id = 'midiInputSelect';
   const label = document.createElement('label');
@@ -197,8 +202,9 @@ const createControllerSelector = curry((onMessage, controllers) => {
       }
     });
   };
-  document.body.appendChild(label);
-  document.body.appendChild(selectElement);
+  selectorContainer.appendChild(label);
+  selectorContainer.appendChild(selectElement);
+  getMasterControlsSection().appendChild(selectorContainer);
 });
 
 const addRelativeElementCoords = curry((element, event) => {
@@ -245,10 +251,12 @@ const initialize = () => {
         }
       });
 
-      document.body.appendChild(masterOnButton);
+      getMasterControlsSection().appendChild(masterOnButton);
 
       const waveforms = ['sine', 'triangle', 'sawtooth', 'square'];
 
+      const waveformsContainer = document.createElement('div');
+      waveformsContainer.classList.add('control-group');
       const waveformSelector = document.createElement('select');
       waveformSelector.id = 'waveform-selector';
       waveforms.forEach(waveform => {
@@ -262,9 +270,14 @@ const initialize = () => {
       const waveformLabel = document.createElement('label');
       waveformLabel.htmlFor = waveformSelector.id;
       waveformLabel.innerText = 'waveform';
-      document.body.appendChild(waveformLabel);
-      document.body.appendChild(waveformSelector);
+      waveformsContainer.appendChild(waveformLabel);
+      waveformsContainer.appendChild(waveformSelector);
+      getOscillatorControlsSection().appendChild(waveformsContainer);
 
+      const envelopeContainer = document.createElement('div');
+      const envelopHeader = document.createElement('h3');
+      envelopHeader.innerText = 'Gain envelope';
+      envelopeContainer.appendChild(envelopHeader);
       const envelopeElement = document.createElement('canvas');
       envelopeElement.id = 'midiInputGainEnvelope';
       const envelopeLabel = document.createElement('label');
@@ -330,10 +343,15 @@ const initialize = () => {
       );
       window.addEventListener('mouseup', handleReleased);
       drawEnvelopeState(envelopeCanvasOptions, envelopeContext, envelopeState);
-      document.body.appendChild(envelopeLabel);
-      document.body.appendChild(envelopeElement);
+      envelopeContainer.appendChild(envelopeLabel);
+      envelopeContainer.appendChild(envelopeElement);
 
-      keyBoardOscillatorPool.forEach(({ amp }) => document.body.appendChild(amp.htmlElement));
+      const oscillatorPoolHeader = document.createElement('h3');
+      oscillatorPoolHeader.innerText = 'Oscillator pool';
+      envelopeContainer.appendChild(oscillatorPoolHeader);
+
+      keyBoardOscillatorPool.forEach(({ amp }) => envelopeContainer.appendChild(amp.htmlElement));
+      getOscillatorControlsSection().appendChild(envelopeContainer);
 
       keyBoardOscillatorPool.forEach(({ oscillator }) => oscillator.start());
     })
