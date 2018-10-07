@@ -49,7 +49,45 @@ const envelopeCanvasOptions = {
   maxAmplitude: 1,
   totalSeconds: 5,
   handleRadius: 6,
-  minSustainWidth: 50
+  minSustainWidth: 50,
+  noteFontSize: 12
+};
+let animations = [];
+
+const drawNoteAnimations = (
+  animations,
+  { height, width, maxAmplitude, totalSeconds, amplitudePerPixel, secondsPerPixel, noteFontSize },
+  context,
+  time
+) => {
+  context.save();
+  context.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  context.textAlign = 'center';
+  context.textBaseline = 'ideographic';
+  context.font = `${noteFontSize}px sans-serif`;
+  const noteTextWidth = context.measureText('E#-1').width * 0.6;
+  const activeAnimations = animations.filter(a => a.startTime <= time && time <= a.endTime);
+  activeAnimations.forEach(animation => {
+    const timeOnCanvas = (time - animation.curveSratTime) / 1000 / secondsPerPixel;
+    const amplitudeOnCanvas =
+      height - animation.curve((time - animation.startTime) / 1000) / amplitudePerPixel;
+    animation.timeOnCanvas = timeOnCanvas;
+    animation.amplitudeOnCanvas = amplitudeOnCanvas;
+    context.beginPath();
+    context.arc(timeOnCanvas, amplitudeOnCanvas, noteTextWidth, 0, 2 * Math.PI);
+    console.log('animation at ', timeOnCanvas, amplitudeOnCanvas);
+    context.fill();
+  });
+  context.fillStyle = 'rgba(255, 255, 255, 06)';
+  activeAnimations.forEach(animation => {
+    context.fillText(
+      animation.noteName,
+      animation.timeOnCanvas,
+      animation.amplitudeOnCanvas + 0.5 * noteFontSize
+    );
+  });
+
+  context.restore();
 };
 
 const showParams = (containerElement, { a, d, s, r }) => {
@@ -67,7 +105,7 @@ Release:
   containerElement.appendChild(paramsElement);
 };
 const drawEnvelopeState = (
-  { height, width, maxAmplitude, totalSeconds, handleRadius },
+  { height, width, maxAmplitude, totalSeconds, handleRadius, noteFontSize },
   context,
   { a, d, s, r },
   paramsElement
@@ -121,6 +159,54 @@ const drawEnvelopeState = (
   context.fill();
 
   showParams(paramsElement, { a, d, s, r });
+
+  const time = Date.now();
+  animations = animations.filter(a => a.endTime > time);
+  drawNoteAnimations(
+    animations,
+    { height, width, maxAmplitude, totalSeconds, amplitudePerPixel, secondsPerPixel, noteFontSize },
+    context,
+    time
+  );
+
+  const activeAnimations = animations.filter(a => a.startTime <= time && time <= a.endTime);
+  if (activeAnimations.length) {
+    requestAnimationFrame(() =>
+      drawEnvelopeState(
+        { height, width, maxAmplitude, totalSeconds, handleRadius, noteFontSize },
+        context,
+        { a, d, s, r },
+        paramsElement
+      )
+    );
+  }
+};
+
+const startAttackAnimation = ({ a, d, s }, noteName) => {
+  const now = Date.now();
+  return [
+    {
+      phase: 'attack',
+      curve: t => (a.amplitude / a.time) * t,
+      noteName,
+      startTime: now,
+      curveSratTime: now,
+      endTime: now + a.time * 1000
+    },
+    {
+      // a.amplitude = c
+      // s.amplitude = m*(d.time) + c
+      // s.amplitude = m*(d.time) + a.amplitude
+      // m = (s.amplitude -a.amplitude )/d.time
+      // amplitude = t*((s.amplitude -a.amplitude )/d.time) + a.amplitude
+      phase: 'decay',
+      curve: t => t * ((s.amplitude - a.amplitude) / d.time) + a.amplitude,
+      noteName,
+      startTime: now + a.time * 1000,
+      curveSratTime: now,
+      endTime: now + 1000 * (a.time + d.time)
+    }
+  ];
 };
 
 const handleEnvelopePointMove = curry(
@@ -178,7 +264,6 @@ const oscillateOnMidiEvent = curry(
 
       if (velocity <= 0 || status <= 143) {
         oscillatorEntry = getOscillatorForKey(oscillatorPool, keyNumber);
-        console.log('releasing osc for note', keyNumberToNote(keyNumber), oscillatorEntry);
         if (!oscillatorEntry) {
           return;
         }
@@ -196,7 +281,10 @@ const oscillateOnMidiEvent = curry(
         oscillatorEntry.lastPressed = Date.now();
         oscillatorEntry.isDecaying = false;
 
-        oscillatorEntry.amp.startEnvelope({ a, d, s }, scalingFactor, keyNumberToNote(keyNumber));
+        const noteName = keyNumberToNote(keyNumber);
+        // impure
+        animations.push(...startAttackAnimation({ a, d, s }, noteName));
+        oscillatorEntry.amp.startEnvelope({ a, d, s }, scalingFactor, noteName);
         // if the oscillator hasn't been freed and is being reused, cancel the scheduled freeing
         if (oscillatorEntry.key !== null) {
           clearTimeout(oscillatorEntry.freeTimer);
@@ -244,6 +332,8 @@ const addRelativeElementCoords = curry((element, event) => {
   event.relativeY = event.clientY - elementLocation.y;
   return event;
 });
+
+let envelopeContext, envelopParamsContainer;
 
 const initialize = () => {
   const context = new AudioContext();
@@ -318,8 +408,8 @@ const initialize = () => {
       envelopeLabel.htmlFor = envelopeElement.id;
       envelopeElement.width = envelopeCanvasOptions.width;
       envelopeElement.height = envelopeCanvasOptions.height;
-      const envelopeContext = envelopeElement.getContext('2d');
-      const envelopParamsContainer = document.createElement('div');
+      envelopeContext = envelopeElement.getContext('2d');
+      envelopParamsContainer = document.createElement('div');
 
       const isRegion = propEq('region');
 
@@ -413,7 +503,20 @@ const initialize = () => {
       keyBoardOscillatorPool.forEach(({ oscillator }) => oscillator.start());
     })
     .then(getMidiControllers)
-    .then(createControllerSelector(oscillateOnMidiEvent(keyBoardOscillatorPool, envelopeState)));
+    .then(
+      createControllerSelector(
+        pipe(
+          oscillateOnMidiEvent(keyBoardOscillatorPool, envelopeState),
+          () =>
+            drawEnvelopeState(
+              envelopeCanvasOptions,
+              envelopeContext,
+              envelopeState,
+              envelopParamsContainer
+            )
+        )
+      )
+    );
 };
 
 document.addEventListener(
