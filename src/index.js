@@ -160,7 +160,10 @@ const handleEnvelopePointMove = curry(
 );
 
 const getFirstIdleOscillator = oscillatorPool =>
-  oscillatorPool.find(osc => !osc.key) || oscillatorPool.reduce(minBy(o => o.lastReleased));
+  oscillatorPool.find(osc => !osc.key) ||
+  (oscillatorPool.some(osc => osc.isDecaying) &&
+    oscillatorPool.filter(osc => osc.isDecaying).reduce(minBy(o => o.lastReleased))) ||
+  oscillatorPool.reduce(minBy(o => o.lastReleased));
 const getOscillatorForKey = (oscillatorPool, keyNumber) =>
   sortBy(o => -o.lastPressed, oscillatorPool).find(o => o.key === keyNumber);
 
@@ -180,13 +183,16 @@ const oscillateOnMidiEvent = curry(
         }
         oscillatorEntry.freeTimer = setTimeout(() => {
           oscillatorEntry.key = null;
-          oscillatorEntry.lastReleased = Date.now();
+          oscillatorEntry.isDecaying = false;
         }, r.time * 1000);
+        oscillatorEntry.lastReleased = Date.now();
+        oscillatorEntry.isDecaying = true;
         oscillatorEntry.amp.endEnvelope({ r });
       } else {
         const scalingFactor = velocity / maxVelocity / oscillatorPool.length;
         oscillatorEntry = getFirstIdleOscillator(oscillatorPool);
         oscillatorEntry.lastPressed = Date.now();
+        oscillatorEntry.isDecaying = false;
         oscillatorEntry.amp.startEnvelope({ a, d, s }, scalingFactor, keyNumberToNote(keyNumber));
         // if the oscillator hasn't been freed and is being reused, cancel the scheduled freeing
         if (oscillatorEntry.key !== null) {
