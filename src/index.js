@@ -47,10 +47,26 @@ const envelopeCanvasOptions = {
   handleRadius: 4,
   minSustainWidth: 50
 };
+
+const showParams = (containerElement, { a, d, s, r }) => {
+  containerElement.innerHTML = ``;
+  const paramsElement = document.createElement('pre');
+  paramsElement.innerText = `Attack:
+  time: ${a.time}
+  amplitude: ${a.amplitude}
+Release:
+  time: ${r.time}
+Sustain:
+  amplitude: ${s.amplitude}
+Decay:
+  time: ${d.time}`;
+  containerElement.appendChild(paramsElement);
+};
 const drawEnvelopeState = (
   { height, width, maxAmplitude, totalSeconds, handleRadius },
   context,
-  { a, d, s, r }
+  { a, d, s, r },
+  paramsElement
 ) => {
   const amplitudePerPixel = maxAmplitude / height;
   const secondsPerPixel = totalSeconds / width;
@@ -99,6 +115,8 @@ const drawEnvelopeState = (
   );
   context.addHitRegion({ id: 'release', cursor: 'grab' });
   context.fill();
+
+  showParams(paramsElement, { a, d, s, r });
 };
 
 const handleEnvelopePointMove = curry(
@@ -285,6 +303,7 @@ const initialize = () => {
       envelopeElement.width = envelopeCanvasOptions.width;
       envelopeElement.height = envelopeCanvasOptions.height;
       const envelopeContext = envelopeElement.getContext('2d');
+      const envelopParamsContainer = document.createElement('div');
 
       const isRegion = propEq('region');
 
@@ -323,7 +342,12 @@ const initialize = () => {
             handleEnvelopePointMove(envelopeCanvasOptions, envelopeState),
             () =>
               requestAnimationFrame(() =>
-                drawEnvelopeState(envelopeCanvasOptions, envelopeContext, envelopeState)
+                drawEnvelopeState(
+                  envelopeCanvasOptions,
+                  envelopeContext,
+                  envelopeState,
+                  envelopParamsContainer
+                )
               )
           )
         )
@@ -337,14 +361,25 @@ const initialize = () => {
           () => stopMoving(envelopeState),
           () =>
             requestAnimationFrame(() =>
-              drawEnvelopeState(envelopeCanvasOptions, envelopeContext, envelopeState)
+              drawEnvelopeState(
+                envelopeCanvasOptions,
+                envelopeContext,
+                envelopeState,
+                envelopParamsContainer
+              )
             )
         )
       );
       window.addEventListener('mouseup', handleReleased);
-      drawEnvelopeState(envelopeCanvasOptions, envelopeContext, envelopeState);
+      drawEnvelopeState(
+        envelopeCanvasOptions,
+        envelopeContext,
+        envelopeState,
+        envelopParamsContainer
+      );
       envelopeContainer.appendChild(envelopeLabel);
       envelopeContainer.appendChild(envelopeElement);
+      envelopeContainer.appendChild(envelopParamsContainer);
 
       const oscillatorPoolHeader = document.createElement('h3');
       oscillatorPoolHeader.innerText = 'Oscillator pool';
