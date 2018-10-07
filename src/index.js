@@ -169,16 +169,16 @@ const getOscillatorForKey = (oscillatorPool, keyNumber) =>
 
 const oscillateOnMidiEvent = curry(
   (oscillatorPool, { a, d, s, r }, { data: [status, keyNumber, velocity] }) => {
-    const noteOnMask = 0x90; // any channel;
+    const noteRangeStart = 128;
+    const noteRangeEnd = 159; // any channel, on or off
     const maxVelocity = 127;
     console.log('midi event:', { status, keyNumber, velocity });
-    if (noteOnMask & status) {
+    if (noteRangeStart <= status && status <= noteRangeEnd) {
       let oscillatorEntry;
 
-      if (velocity <= 0) {
+      if (velocity <= 0 || status <= 143) {
         oscillatorEntry = getOscillatorForKey(oscillatorPool, keyNumber);
         if (!oscillatorEntry) {
-          console.count('no oscillator to fee for key ' + keyNumber);
           return;
         }
         oscillatorEntry.freeTimer = setTimeout(() => {
@@ -193,6 +193,7 @@ const oscillateOnMidiEvent = curry(
         oscillatorEntry = getFirstIdleOscillator(oscillatorPool);
         oscillatorEntry.lastPressed = Date.now();
         oscillatorEntry.isDecaying = false;
+        console.count('note on ' + keyNumberToNote(keyNumber));
         oscillatorEntry.amp.startEnvelope({ a, d, s }, scalingFactor, keyNumberToNote(keyNumber));
         // if the oscillator hasn't been freed and is being reused, cancel the scheduled freeing
         if (oscillatorEntry.key !== null) {
