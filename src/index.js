@@ -54,12 +54,12 @@ const showParams = (containerElement, { a, d, s, r }) => {
   paramsElement.innerText = `Attack:
   time: ${a.time}
   amplitude: ${a.amplitude}
-Release:
-  time: ${r.time}
+Decay:
+  time: ${d.time}
 Sustain:
   amplitude: ${s.amplitude}
-Decay:
-  time: ${d.time}`;
+Release:
+  time: ${r.time}`;
   containerElement.appendChild(paramsElement);
 };
 const drawEnvelopeState = (
@@ -235,7 +235,7 @@ const addRelativeElementCoords = curry((element, event) => {
 const initialize = () => {
   const context = new AudioContext();
   const keyBoardOscillatorPool = [];
-  const oscillatorPoolSize = 10;
+  const oscillatorPoolSize = 30;
   for (let index = 0; index < oscillatorPoolSize; index++) {
     keyBoardOscillatorPool.push({
       oscillator: new OscillatorNode(context),
@@ -291,6 +291,9 @@ const initialize = () => {
       waveformsContainer.appendChild(waveformLabel);
       waveformsContainer.appendChild(waveformSelector);
       getOscillatorControlsSection().appendChild(waveformsContainer);
+
+      const controlsContainer = document.createElement('div');
+      controlsContainer.classList.add('flex-controls');
 
       const envelopeContainer = document.createElement('div');
       const envelopHeader = document.createElement('h3');
@@ -381,12 +384,18 @@ const initialize = () => {
       envelopeContainer.appendChild(envelopeElement);
       envelopeContainer.appendChild(envelopParamsContainer);
 
+      const oscillatorPoolContainer = document.createElement('div');
       const oscillatorPoolHeader = document.createElement('h3');
       oscillatorPoolHeader.innerText = 'Oscillator pool';
-      envelopeContainer.appendChild(oscillatorPoolHeader);
+      oscillatorPoolContainer.appendChild(oscillatorPoolHeader);
+      const oscillatorsStack = document.createElement('div');
+      oscillatorsStack.classList.add('flex-controls-vertical');
 
-      keyBoardOscillatorPool.forEach(({ amp }) => envelopeContainer.appendChild(amp.htmlElement));
-      getOscillatorControlsSection().appendChild(envelopeContainer);
+      keyBoardOscillatorPool.forEach(({ amp }) => oscillatorsStack.appendChild(amp.htmlElement));
+      oscillatorPoolContainer.appendChild(oscillatorsStack);
+      controlsContainer.appendChild(envelopeContainer);
+      controlsContainer.appendChild(oscillatorPoolContainer);
+      getOscillatorControlsSection().appendChild(controlsContainer);
 
       keyBoardOscillatorPool.forEach(({ oscillator }) => oscillator.start());
     })

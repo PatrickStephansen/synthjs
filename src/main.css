@@ -10,3 +10,20 @@ canvas {
   margin-top: 5px;
   margin-bottom: 5px;
 }
+
+.flex-controls {
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: left;
+}
+
+.flex-controls div {
+  margin-right:30px;
+}
+
+.flex-controls-vertical {
+  display: flex;
+  flex-flow: column wrap;
+  justify-content: left;
+  max-height: 360px;
+}
