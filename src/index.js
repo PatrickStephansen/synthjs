@@ -165,7 +165,7 @@ const getFirstIdleOscillator = oscillatorPool =>
     oscillatorPool.filter(osc => osc.isDecaying).reduce(minBy(o => o.lastReleased))) ||
   oscillatorPool.reduce(minBy(o => o.lastReleased));
 const getOscillatorForKey = (oscillatorPool, keyNumber) =>
-  sortBy(o => -o.lastPressed, oscillatorPool).find(o => o.key === keyNumber);
+  sortBy(o => -o.lastPressed, oscillatorPool).find(o => o.key === keyNumber && !o.isDecaying);
 
 const oscillateOnMidiEvent = curry(
   (oscillatorPool, { a, d, s, r }, { data: [status, keyNumber, velocity] }) => {
@@ -178,6 +178,7 @@ const oscillateOnMidiEvent = curry(
 
       if (velocity <= 0 || status <= 143) {
         oscillatorEntry = getOscillatorForKey(oscillatorPool, keyNumber);
+        console.log('releasing osc for note', keyNumberToNote(keyNumber), oscillatorEntry);
         if (!oscillatorEntry) {
           return;
         }
@@ -187,13 +188,14 @@ const oscillateOnMidiEvent = curry(
         }, r.time * 1000);
         oscillatorEntry.lastReleased = Date.now();
         oscillatorEntry.isDecaying = true;
-        oscillatorEntry.amp.endEnvelope({ r });
+
+        oscillatorEntry.amp.endEnvelope({ r }, keyNumberToNote(keyNumber));
       } else {
         const scalingFactor = velocity / maxVelocity / oscillatorPool.length;
         oscillatorEntry = getFirstIdleOscillator(oscillatorPool);
         oscillatorEntry.lastPressed = Date.now();
         oscillatorEntry.isDecaying = false;
-        console.count('note on ' + keyNumberToNote(keyNumber));
+
         oscillatorEntry.amp.startEnvelope({ a, d, s }, scalingFactor, keyNumberToNote(keyNumber));
         // if the oscillator hasn't been freed and is being reused, cancel the scheduled freeing
         if (oscillatorEntry.key !== null) {
