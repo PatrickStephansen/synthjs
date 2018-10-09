@@ -518,7 +518,8 @@ const initialize = () => {
                   envelopeState,
                   envelopParamsContainer
                 )
-              )
+              ),
+            () => window.getSelection().empty()
           )
         )
       );
