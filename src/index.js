@@ -16,6 +16,8 @@ import {
 import './main.css';
 import { GainControl } from './components/gain-control';
 
+const maxBend = 2; // semitones
+let pitchOffset = 0;
 const getMasterControlsSection = () => document.getElementById('master-controls');
 const getOscillatorControlsSection = () => document.getElementById('oscillator-controls');
 
@@ -311,6 +313,8 @@ const oscillateOnMidiEvent = curry(
     const noteRangeStart = 128;
     const noteRangeEnd = 159; // any channel, on or off
     const maxVelocity = 127;
+    const pitchBendStart = 224;
+    const pitchBendEnd = 239;
     console.log('midi event:', { status, keyNumber, velocity });
     if (noteRangeStart <= status && status <= noteRangeEnd) {
       let oscillatorEntry;
@@ -354,7 +358,17 @@ const oscillateOnMidiEvent = curry(
       // some controllers send note on with 0 velocity instead of note off events
       oscillatorEntry.key = keyNumber;
       // A4 = 12 * 5 octaves up -3 semitones
-      oscillatorEntry.oscillator.frequency.setValueAtTime(keyNumberToPitch(57, 440, keyNumber), 0);
+      oscillatorEntry.oscillator.frequency.setValueAtTime(
+        keyNumberToPitch(57, 440, keyNumber + pitchOffset),
+        oscillatorEntry.oscillator.context.currentTime
+      );
+    }
+    if (pitchBendStart <= status && status <= pitchBendEnd) {
+      pitchOffset = ((velocity - 64) / 64) * maxBend;
+      oscillatorPool.forEach(oscillatorEntry => {
+        if (!oscillatorEntry.key) return;
+        oscillatorEntry.oscillator.frequency.setValueAtTime(keyNumberToPitch(57, 440, oscillatorEntry.key + pitchOffset), oscillatorEntry.oscillator.context.currentTime);
+      });
     }
   }
 );
