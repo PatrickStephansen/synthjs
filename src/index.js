@@ -69,7 +69,7 @@ let animations = [];
 
 const drawNoteAnimations = (
   animations,
-  { height, width, maxAmplitude, totalSeconds, amplitudePerPixel, secondsPerPixel, noteFontSize },
+  { height, totalSeconds, amplitudePerPixel, secondsPerPixel, noteFontSize },
   context,
   { r },
   time
@@ -115,9 +115,7 @@ const drawNoteAnimations = (
   context.restore();
 };
 
-const showParams = (containerElement, { a, d, s, r }) => {
-  containerElement.innerHTML = ``;
-  const paramsElement = document.createElement('pre');
+const showParams = (paramsElement, { a, d, s, r }) => {
   paramsElement.innerText = `Attack:
   time: ${a.time}
   amplitude: ${a.amplitude}
@@ -127,7 +125,6 @@ Sustain:
   amplitude: ${s.amplitude}
 Release:
   time: ${r.time}`;
-  containerElement.appendChild(paramsElement);
 };
 const drawEnvelopeState = (
   { height, width, maxAmplitude, totalSeconds, handleRadius, noteFontSize },
@@ -397,7 +394,7 @@ const addRelativeElementCoords = curry((element, event) => {
   return event;
 });
 
-let envelopeContext, envelopParamsContainer;
+let envelopeContext, envelopParamsElement;
 
 const initialize = () => {
   const context = new AudioContext();
@@ -473,7 +470,7 @@ const initialize = () => {
       envelopeElement.width = envelopeCanvasOptions.width;
       envelopeElement.height = envelopeCanvasOptions.height;
       envelopeContext = envelopeElement.getContext('2d');
-      envelopParamsContainer = document.createElement('div');
+      envelopParamsElement = document.createElement('pre');
 
       const isRegion = propEq('region');
 
@@ -516,7 +513,7 @@ const initialize = () => {
                   envelopeCanvasOptions,
                   envelopeContext,
                   envelopeState,
-                  envelopParamsContainer
+                  envelopParamsElement
                 )
               ),
             () => window.getSelection().empty()
@@ -536,7 +533,7 @@ const initialize = () => {
                 envelopeCanvasOptions,
                 envelopeContext,
                 envelopeState,
-                envelopParamsContainer
+                envelopParamsElement
               )
             )
         )
@@ -546,11 +543,11 @@ const initialize = () => {
         envelopeCanvasOptions,
         envelopeContext,
         envelopeState,
-        envelopParamsContainer
+        envelopParamsElement
       );
       envelopeContainer.appendChild(envelopeLabel);
       envelopeContainer.appendChild(envelopeElement);
-      envelopeContainer.appendChild(envelopParamsContainer);
+      envelopeContainer.appendChild(envelopParamsElement);
 
       const oscillatorPoolContainer = document.createElement('div');
       const oscillatorPoolHeader = document.createElement('h3');
@@ -577,7 +574,7 @@ const initialize = () => {
               envelopeCanvasOptions,
               envelopeContext,
               envelopeState,
-              envelopParamsContainer
+              envelopParamsElement
             )
         )
       )
