@@ -59,13 +59,13 @@ const keyNumberToNote = keyNumber =>
   (Math.floor(keyNumber / 12) - 1);
 
 const envelopeCanvasOptions = {
-  height: 360,
-  width: 1000,
+  height: 450,
+  width: 1300,
   maxAmplitude: 1,
   totalSeconds: 5,
   handleRadius: 6,
   minSustainWidth: 50,
-  noteFontSize: 12
+  noteFontSize: 16
 };
 let animations = [];
 
