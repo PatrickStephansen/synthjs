@@ -16,6 +16,8 @@ import {
 import './main.css';
 import { GainControl } from './components/gain-control';
 
+import './favicon.ico';
+
 const maxBend = 2; // semitones
 let pitchOffset = 0;
 const getMasterControlsSection = () => document.getElementById('master-controls');
