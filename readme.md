@@ -1,6 +1,6 @@
 # synthjs
 
-Beginner-friendly modular synth for the browser
+Beginner-friendly modular synth for the browser. See it run at https://patrickstephansen.github.io/synthjs/.
 
 Run `npx maid <level3-heading>` to run the listed scripts. (`npm i` first to make sure maid is installed)
 
@@ -31,7 +31,7 @@ npm run bundle
 
 ### deploy
 
-Deploy using Github pages. Run task `bundle` before this.
+Run task `bundle` before this. Deploy using Github pages.
 
 ```bash
 npm run deploy
