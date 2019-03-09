@@ -367,11 +367,24 @@ const oscillateOnMidiEvent = curry(
       pitchOffset = ((velocity - 64) / 64) * maxBend;
       oscillatorPool.forEach(oscillatorEntry => {
         if (!oscillatorEntry.key) return;
-        oscillatorEntry.oscillator.frequency.setValueAtTime(keyNumberToPitch(57, 440, oscillatorEntry.key + pitchOffset), oscillatorEntry.oscillator.context.currentTime);
+        oscillatorEntry.oscillator.frequency.setValueAtTime(
+          keyNumberToPitch(57, 440, oscillatorEntry.key + pitchOffset),
+          oscillatorEntry.oscillator.context.currentTime
+        );
       });
     }
   }
 );
+
+const selectControllerByIndex = (controllers, onMessage, selectedIndex) => {
+  controllers.forEach((device, index) => {
+    if (index == selectedIndex) {
+      device.onmidimessage = onMessage;
+    } else {
+      device.onmidimessage = null;
+    }
+  });
+};
 
 const createControllerSelector = curry((onMessage, controllers) => {
   const selectorContainer = document.createElement('div');
@@ -388,17 +401,15 @@ const createControllerSelector = curry((onMessage, controllers) => {
     selectElement.options.add(option);
   });
   selectElement.onchange = e => {
-    controllers.forEach((device, index) => {
-      if (index == e.target.value) {
-        device.onmidimessage = onMessage;
-      } else {
-        device.onmidimessage = null;
-      }
-    });
+    selectControllerByIndex(controllers, onMessage, e.target.value);
   };
+  if (controllers.length) {
+    selectControllerByIndex(controllers, onMessage, 0);
+  }
   selectorContainer.appendChild(label);
   selectorContainer.appendChild(selectElement);
   getMasterControlsSection().appendChild(selectorContainer);
+  return controllers;
 });
 
 const addRelativeElementCoords = curry((element, event) => {
@@ -449,7 +460,7 @@ const initialize = () => {
 
       getMasterControlsSection().appendChild(masterOnButton);
 
-      const waveforms = ['sine', 'triangle', 'sawtooth', 'square'];
+      const waveforms = ['sine', 'triangle', 'square', 'sawtooth'];
 
       const waveformsContainer = document.createElement('div');
       waveformsContainer.classList.add('control-group');
