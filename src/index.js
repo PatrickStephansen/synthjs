@@ -21,6 +21,31 @@ let pitchOffset = 0;
 const getMasterControlsSection = () => document.getElementById('master-controls');
 const getOscillatorControlsSection = () => document.getElementById('oscillator-controls');
 
+// this is not a full implementation, just good enough for the calls currently used
+const polyfillHitRegions = () => {
+  let hitRegions = [];
+  let isFirstCall = true;
+  CanvasRenderingContext2D.prototype.addHitRegion =
+    CanvasRenderingContext2D.prototype.addHitRegion ||
+    function(options) {
+      hitRegions.push(options);
+      if (!isFirstCall) return;
+      isFirstCall = false;
+      this.canvas.addEventListener('mousedown', event => {
+        for (let region of hitRegions) {
+          if (this.isPointInPath(region.path, event.offsetX, event.offsetY)) {
+            event.region = region.id;
+          }
+        }
+      });
+    };
+  CanvasRenderingContext2D.prototype.clearHitRegions =
+    CanvasRenderingContext2D.prototype.clearHitRegions ||
+    function() {
+      hitRegions = [];
+    };
+};
+
 const getMidiControllers = () => {
   const requestMidiAccess = path(['navigator', 'requestMIDIAccess'], window);
   if (!is(Function, requestMidiAccess)) {
@@ -136,20 +161,20 @@ const drawEnvelopeState = (
 ) => {
   const amplitudePerPixel = maxAmplitude / height;
   const secondsPerPixel = totalSeconds / width;
-  const drawLineTo = (time, amplitude) =>
-    context.lineTo(time / secondsPerPixel, height - amplitude / amplitudePerPixel);
+  const drawLineTo = (path, time, amplitude) =>
+    path.lineTo(time / secondsPerPixel, height - amplitude / amplitudePerPixel);
   context.lineJoin = 'miter';
   context.clearRect(0, 0, width, height);
   context.clearHitRegions();
-  context.beginPath();
-  context.moveTo(0, height);
-  drawLineTo(a.time, a.amplitude);
-  drawLineTo(a.time + d.time, s.amplitude);
-  drawLineTo(totalSeconds - r.time, s.amplitude);
-  drawLineTo(totalSeconds, 0);
-  context.stroke();
-  context.beginPath();
-  context.arc(
+  const lines = new Path2D();
+  lines.moveTo(0, height);
+  drawLineTo(lines, a.time, a.amplitude);
+  drawLineTo(lines, a.time + d.time, s.amplitude);
+  drawLineTo(lines, totalSeconds - r.time, s.amplitude);
+  drawLineTo(lines, totalSeconds, 0);
+  context.stroke(lines);
+  const attackPoint = new Path2D();
+  attackPoint.arc(
     a.time / secondsPerPixel,
     height - a.amplitude / amplitudePerPixel,
     handleRadius,
@@ -157,10 +182,10 @@ const drawEnvelopeState = (
     2 * Math.PI,
     false
   );
-  context.addHitRegion({ id: 'attack', cursor: 'grab' });
-  context.fill();
-  context.beginPath();
-  context.arc(
+  context.addHitRegion({ id: 'attack', path: attackPoint });
+  context.fill(attackPoint);
+  const decayPoint = new Path2D();
+  decayPoint.arc(
     (a.time + d.time) / secondsPerPixel,
     height - s.amplitude / amplitudePerPixel,
     handleRadius,
@@ -168,10 +193,10 @@ const drawEnvelopeState = (
     2 * Math.PI,
     false
   );
-  context.addHitRegion({ id: 'decay', cursor: 'grab' });
-  context.fill();
-  context.beginPath();
-  context.arc(
+  context.addHitRegion({ id: 'decay', path: decayPoint });
+  context.fill(decayPoint);
+  const releasePoint = new Path2D();
+  releasePoint.arc(
     (totalSeconds - r.time) / secondsPerPixel,
     height - s.amplitude / amplitudePerPixel,
     handleRadius,
@@ -179,8 +204,8 @@ const drawEnvelopeState = (
     2 * Math.PI,
     false
   );
-  context.addHitRegion({ id: 'release', cursor: 'grab' });
-  context.fill();
+  context.addHitRegion({ id: 'release', path: releasePoint });
+  context.fill(releasePoint);
 
   showParams(paramsElement, { a, d, s, r });
 
@@ -431,6 +456,8 @@ const addRelativeElementCoords = curry((element, event) => {
 let envelopeContext, envelopParamsElement;
 
 const initialize = () => {
+  polyfillHitRegions();
+
   const context = new AudioContext();
   const keyBoardOscillatorPool = [];
   const oscillatorPoolSize = 30;
@@ -499,6 +526,8 @@ const initialize = () => {
       envelopeContainer.appendChild(envelopHeader);
       const envelopeElement = document.createElement('canvas');
       envelopeElement.id = 'midiInputGainEnvelope';
+      const envelopEventListenerElement = document.createElement('div');
+      envelopEventListenerElement.id = 'gainEnvelopeListener';
       const envelopeLabel = document.createElement('label');
       envelopeLabel.htmlFor = envelopeElement.id;
       envelopeElement.width = envelopeCanvasOptions.width;
@@ -508,7 +537,7 @@ const initialize = () => {
 
       const isRegion = propEq('region');
 
-      envelopeElement.addEventListener(
+      envelopEventListenerElement.addEventListener(
         'mousedown',
         cond([
           [
@@ -539,7 +568,7 @@ const initialize = () => {
         when(
           () => anyMoving(envelopeState),
           pipe(
-            addRelativeElementCoords(envelopeElement),
+            addRelativeElementCoords(envelopEventListenerElement),
             handleEnvelopePointMove(envelopeCanvasOptions, envelopeState),
             () =>
               requestAnimationFrame(() =>
@@ -558,7 +587,7 @@ const initialize = () => {
       const handleReleased = when(
         () => anyMoving(envelopeState),
         pipe(
-          addRelativeElementCoords(envelopeElement),
+          addRelativeElementCoords(envelopEventListenerElement),
           handleEnvelopePointMove(envelopeCanvasOptions, envelopeState),
           () => stopMoving(envelopeState),
           () =>
@@ -579,8 +608,9 @@ const initialize = () => {
         envelopeState,
         envelopParamsElement
       );
+      envelopEventListenerElement.appendChild(envelopeElement);
       envelopeContainer.appendChild(envelopeLabel);
-      envelopeContainer.appendChild(envelopeElement);
+      envelopeContainer.appendChild(envelopEventListenerElement);
       envelopeContainer.appendChild(envelopParamsElement);
 
       const oscillatorPoolContainer = document.createElement('div');
