@@ -7,23 +7,13 @@ module.exports = {
     filename: 'index.js',
     path: path.resolve(__dirname, 'dist')
   },
-  mode: 'development',
-  plugins: [new CopyWebpackPlugin(['src/index.html'])],
+  mode: 'production',
+  plugins: [new CopyWebpackPlugin(['src/index.html', 'src/favicon.ico'])],
   module: {
     rules: [
       {
         test: /\.css$/,
         use: ['style-loader', 'css-loader']
-      },
-      {
-        test: /\.ico$/,
-        use: {
-          loader: 'file-loader',
-          options: {
-            name: '[name].[ext]',
-            publicPath:'/'
-          }
-        }
       }
     ]
   }
