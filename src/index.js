@@ -487,12 +487,15 @@ const initialize = () => {
       const masterOnButton = document.createElement('button');
       let itsOn = false;
       masterOnButton.innerHTML = 'make some noise';
+      masterOnButton.title = 'Click this to enable sound. Some browsers have autoplay policies that stop sound from being enabled immedaitely when a page loads.'
       masterOnButton.addEventListener('click', () => {
         if ((itsOn = !itsOn)) {
           context.resume();
           masterOnButton.innerHTML = 'cut that out';
+          masterOnButton.title = 'Mute sound';
         } else {
           context.suspend();
+          masterOnButton.title = 'Enable sound.'
           masterOnButton.innerHTML = 'make some noise';
         }
       });
