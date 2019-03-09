@@ -38,3 +38,8 @@ canvas {
   padding-left: 5px;
   display: inline-block;
 }
+
+#errors {
+  color: red;
+  font-size: 12pt;
+}

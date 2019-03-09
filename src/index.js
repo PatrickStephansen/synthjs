@@ -51,7 +51,7 @@ const polyfillHitRegions = () => {
 const getMidiControllers = () => {
   const requestMidiAccess = path(['navigator', 'requestMIDIAccess'], window);
   if (!is(Function, requestMidiAccess)) {
-    throw new Error('no midi support');
+    throw new Error('No midi support. This app requires a Chromium-based browser to input midi.');
   }
   return window.navigator.requestMIDIAccess().then(access => {
     const midiInputsIterator = access.inputs.values();
@@ -62,6 +62,9 @@ const getMidiControllers = () => {
       input = midiInputsIterator.next()
     ) {
       controllers.push(input.value);
+    }
+    if (!controllers.length) {
+      throw new Error('No midi ports found. You need to plug in a midi controller or start an app that outputs midi signals to make any sounds.')
     }
     return controllers;
   }, console.error);
@@ -470,9 +473,9 @@ const initialize = () => {
     });
   }
   const envelopeState = {
-    a: { time: 0.5, amplitude: 1 },
-    d: { time: 1 },
-    s: { amplitude: 0.75 },
+    a: { time: 0.01, amplitude: 1 },
+    d: { time: 0.25 },
+    s: { amplitude: 0.25 },
     r: { time: 1 }
   };
 
@@ -644,7 +647,13 @@ const initialize = () => {
             )
         )
       )
-    );
+    )
+    .catch(error => {
+      const errorList = document.getElementById('errors');
+      const errorItem = document.createElement('p');
+      errorItem.textContent = error.message;
+      errorList.appendChild(errorItem);
+    });
 };
 
 document.addEventListener(
