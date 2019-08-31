@@ -345,7 +345,6 @@ const oscillateOnMidiEvent = curry(
     const maxVelocity = 127;
     const pitchBendStart = 224;
     const pitchBendEnd = 239;
-    console.log('midi event:', { status, keyNumber, velocity });
     if (noteRangeStart <= status && status <= noteRangeEnd) {
       let oscillatorEntry;
 
@@ -521,7 +520,7 @@ const initialize = () => {
         waveformSelector.options.add(option);
       });
       waveformSelector.onchange = event =>
-      keyBoardOscillatorPool.forEach(({ oscillator }) => (oscillator.type = event.target.value));
+        keyBoardOscillatorPool.forEach(({ oscillator }) => (oscillator.type = event.target.value));
       const waveformLabel = document.createElement('label');
       waveformLabel.htmlFor = waveformSelector.id;
       waveformLabel.innerText = 'waveform';
