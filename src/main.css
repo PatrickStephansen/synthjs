@@ -11,7 +11,7 @@ input, select, button {
 }
 
 canvas {
-  border: solid white 1px;
+  border: solid grey 1px;
 }
 
 .control-group {
