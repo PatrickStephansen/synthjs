@@ -1,9 +1,17 @@
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: black;
+  color: white;
+}
+
+input, select, button {
+  background-color: grey;
+  color: white;
+  border: solid 1px darkgrey;
 }
 
 canvas {
-  border: solid black 1px;
+  border: solid white 1px;
 }
 
 .control-group {

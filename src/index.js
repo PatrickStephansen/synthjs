@@ -108,7 +108,7 @@ const drawNoteAnimations = (
   time
 ) => {
   context.save();
-  context.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  context.fillStyle = 'rgba(255, 255, 255, 0.6)';
   context.textAlign = 'center';
   context.textBaseline = 'ideographic';
   context.font = `${noteFontSize}px sans-serif`;
@@ -134,7 +134,7 @@ const drawNoteAnimations = (
       context.fill();
     })
   );
-  context.fillStyle = 'rgba(255, 255, 255, 06)';
+  context.fillStyle = 'rgba(0, 0, 0, 0.8)';
   activeAnimations.forEach(animation =>
     filterActive(animation.phases).forEach(animationPhase => {
       context.fillText(
@@ -553,6 +553,9 @@ const initialize = () => {
       envelopeElement.width = envelopeCanvasOptions.width;
       envelopeElement.height = envelopeCanvasOptions.height;
       envelopeContext = envelopeElement.getContext('2d');
+      envelopeContext.fillStyle = 'white';
+      envelopeContext.strokeStyle = 'grey';
+      envelopeContext.save();
       envelopParamsElement = document.createElement('pre');
 
       const isRegion = propEq('region');
