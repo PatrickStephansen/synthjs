@@ -62,7 +62,9 @@ const getMidiControllers = () => {
       controllers.push(input.value);
     }
     if (!controllers.length) {
-      throw new Error('No midi ports found. You need to plug in a midi controller or start an app that outputs midi signals to make any sounds.')
+      throw new Error(
+        'No midi ports found. You need to plug in a midi controller or start an app that outputs midi signals to make any sounds.'
+      );
     }
     return controllers;
   }, console.error);
@@ -370,7 +372,7 @@ const oscillateOnMidiEvent = curry(
 
         oscillatorEntry.amp.endEnvelope({ r }, noteName);
       } else {
-        const scalingFactor = velocity / maxVelocity / oscillatorPool.length;
+        const scalingFactor = velocity / maxVelocity;
         oscillatorEntry = getFirstIdleOscillator(oscillatorPool);
         oscillatorEntry.lastPressed = Date.now();
         oscillatorEntry.isDecaying = false;
@@ -464,6 +466,7 @@ const initialize = () => {
   const context = new AudioContext();
   const keyBoardOscillatorPool = [];
   const oscillatorPoolSize = 30;
+
   for (let index = 0; index < oscillatorPoolSize; index++) {
     keyBoardOscillatorPool.push({
       oscillator: new OscillatorNode(context),
@@ -476,18 +479,21 @@ const initialize = () => {
     s: { amplitude: 0.25 },
     r: { time: 1 }
   };
+  const masterGain = new GainControl(context, { gain: 0.3 });
+  masterGain.audioNode.connect(context.destination);
 
   context
     .suspend()
     .then(() => {
       keyBoardOscillatorPool.forEach(({ oscillator, amp }) =>
-        oscillator.connect(amp.audioNode).connect(context.destination)
+        oscillator.connect(amp.audioNode).connect(masterGain.audioNode)
       );
 
       const masterOnButton = document.createElement('button');
       let itsOn = false;
       masterOnButton.innerHTML = 'make some noise';
-      masterOnButton.title = 'Enable sound. Some browsers have autoplay policies that stop sound from being enabled immediately when a page loads.'
+      masterOnButton.title =
+        'Enable sound. Some browsers have autoplay policies that stop sound from being enabled immediately when a page loads.';
       masterOnButton.addEventListener('click', () => {
         if ((itsOn = !itsOn)) {
           context.resume();
@@ -495,7 +501,7 @@ const initialize = () => {
           masterOnButton.title = 'Mute sound';
         } else {
           context.suspend();
-          masterOnButton.title = 'Enable sound.'
+          masterOnButton.title = 'Enable sound.';
           masterOnButton.innerHTML = 'make some noise';
         }
       });
@@ -515,13 +521,14 @@ const initialize = () => {
         waveformSelector.options.add(option);
       });
       waveformSelector.onchange = event =>
-        keyBoardOscillatorPool.forEach(({ oscillator }) => (oscillator.type = event.target.value));
+      keyBoardOscillatorPool.forEach(({ oscillator }) => (oscillator.type = event.target.value));
       const waveformLabel = document.createElement('label');
       waveformLabel.htmlFor = waveformSelector.id;
       waveformLabel.innerText = 'waveform';
       waveformsContainer.appendChild(waveformLabel);
       waveformsContainer.appendChild(waveformSelector);
       getOscillatorControlsSection().appendChild(waveformsContainer);
+      getMasterControlsSection().appendChild(masterGain.htmlElement);
 
       const controlsContainer = document.createElement('div');
       controlsContainer.classList.add('flex-controls');
