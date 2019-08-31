@@ -3,6 +3,7 @@ import {
   cond,
   curry,
   filter,
+  identity,
   is,
   minBy,
   path,
@@ -148,7 +149,7 @@ const drawNoteAnimations = (
 };
 
 const showParams = (paramsElement, { a, d, s, r }) => {
-  paramsElement.innerText = `Attack:
+  const parameterDisplayValues = `Attack:
   time: ${a.time}
   amplitude: ${a.amplitude}
 Decay:
@@ -157,6 +158,10 @@ Sustain:
   amplitude: ${s.amplitude}
 Release:
   time: ${r.time}`;
+
+  if (parameterDisplayValues !== paramsElement.innerText) {
+    paramsElement.innerText = parameterDisplayValues;
+  }
 };
 const drawEnvelopeState = (
   { height, width, maxAmplitude, totalSeconds, handleRadius, noteFontSize },
@@ -338,6 +343,7 @@ const getFirstIdleOscillator = oscillatorPool =>
 const getOscillatorForKey = (oscillatorPool, keyNumber) =>
   sortBy(o => -o.lastPressed, oscillatorPool).find(o => o.key === keyNumber && !o.isDecaying);
 
+// return value determines whether to rerender
 const oscillateOnMidiEvent = curry(
   (oscillatorPool, { a, d, s, r }, { data: [status, keyNumber, velocity] }) => {
     const noteRangeStart = 128;
@@ -391,6 +397,7 @@ const oscillateOnMidiEvent = curry(
         keyNumberToPitch(57, 440, keyNumber + pitchOffset),
         oscillatorEntry.oscillator.context.currentTime
       );
+      return true;
     }
     if (pitchBendStart <= status && status <= pitchBendEnd) {
       pitchOffset = ((velocity - 64) / 64) * maxBend;
@@ -402,6 +409,7 @@ const oscillateOnMidiEvent = curry(
         );
       });
     }
+    return false;
   }
 );
 
@@ -645,13 +653,14 @@ const initialize = () => {
       createControllerSelector(
         pipe(
           oscillateOnMidiEvent(keyBoardOscillatorPool, envelopeState),
-          () =>
+          when(identity, () =>
             drawEnvelopeState(
               envelopeCanvasOptions,
               envelopeContext,
               envelopeState,
               envelopParamsElement
             )
+          )
         )
       )
     )
