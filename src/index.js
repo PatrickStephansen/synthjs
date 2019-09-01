@@ -548,8 +548,6 @@ const initialize = () => {
       envelopeElement.id = 'midiInputGainEnvelope';
       const envelopEventListenerElement = document.createElement('div');
       envelopEventListenerElement.id = 'gainEnvelopeListener';
-      const envelopeLabel = document.createElement('label');
-      envelopeLabel.htmlFor = envelopeElement.id;
       envelopeElement.width = envelopeCanvasOptions.width;
       envelopeElement.height = envelopeCanvasOptions.height;
       envelopeContext = envelopeElement.getContext('2d');
@@ -632,7 +630,6 @@ const initialize = () => {
         envelopParamsElement
       );
       envelopEventListenerElement.appendChild(envelopeElement);
-      envelopeContainer.appendChild(envelopeLabel);
       envelopeContainer.appendChild(envelopEventListenerElement);
       envelopeContainer.appendChild(envelopParamsElement);
 

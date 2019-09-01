@@ -4,7 +4,9 @@ body {
   color: white;
 }
 
-input, select, button {
+input,
+select,
+button {
   background-color: grey;
   color: white;
   border: solid 1px darkgrey;
@@ -12,6 +14,18 @@ input, select, button {
 
 canvas {
   border: solid grey 1px;
+}
+
+h1, h2, h3 {
+  margin: 0;
+}
+
+label {
+  margin-right: 5px;
+}
+
+button {
+  margin-bottom: 3px;
 }
 
 .control-group {
